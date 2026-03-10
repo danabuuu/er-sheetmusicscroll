@@ -11,6 +11,7 @@ export interface System {
 }
 
 export interface ScoreAnalysis {
+  pageCount: number;
   systems: System[];
 }
 

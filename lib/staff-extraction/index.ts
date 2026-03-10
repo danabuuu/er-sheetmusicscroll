@@ -176,7 +176,7 @@ export async function analyzeScore(pdfPath: string): Promise<ScoreAnalysis> {
   }
 
   const systems = detectSystems(allStaves);
-  return { systems };
+  return { pageCount, systems };
 }
 
 // ─── Task 7: extractStrip ────────────────────────────────────────────────────
