@@ -36,8 +36,13 @@ export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Prom
     .toBuffer({ resolveWithObject: true });
 
   const { width, height } = info;
-  const DARK_THRESHOLD = 128;
-  const MIN_DARK_FRACTION = 0.25; // row must have 25%+ dark pixels to count as a staff line
+
+  // At 150 DPI, thin staff lines are often anti-aliased to gray (value ~150-200).
+  // Using 200 catches both solid black and gray lines without picking up the
+  // white (255) background.  MIN_DARK_FRACTION of 20% is enough to require
+  // substantial line coverage while ignoring local note/text clusters.
+  const DARK_THRESHOLD = 200;
+  const MIN_DARK_FRACTION = 0.20;
 
   // Build projection profile: darkness count per row
   const profile: number[] = new Array(height).fill(0);
@@ -56,7 +61,9 @@ export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Prom
     if (profile[y] >= minDark) lineRows.push(y);
   }
 
-  // Merge consecutive dark rows into line segments (each staff line is a few px thick)
+  // Merge consecutive dark rows into line segments.
+  // Allow up to 4-row gaps for anti-aliased thin lines.
+  // A larger gap would merge two adjacent staves in dense scores.
   const segments: { top: number; bottom: number }[] = [];
   for (const row of lineRows) {
     if (segments.length === 0 || row > segments[segments.length - 1].bottom + 4) {
@@ -77,13 +84,22 @@ export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Prom
     const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
     const maxDeviation = Math.max(...gaps.map(g => Math.abs(g - avgGap)));
 
-    // Accept if gaps are consistent (deviation < 40% of avg gap) and reasonably sized
-    if (maxDeviation < avgGap * 0.4 && avgGap >= 3 && avgGap <= 60) {
-      // Pad slightly above/below the outermost lines
+    // Accept if gaps are consistent (deviation < 60% of avg gap) and reasonably
+    // sized.  60% is more permissive than the old 40% to handle cases where
+    // some lines are detected slightly off-position due to anti-aliasing.
+    // Upper limit 150px covers even large-format PDFs rendered at 150 DPI.
+    if (maxDeviation < avgGap * 0.6 && avgGap >= 1 && avgGap <= 150) {
+      // lineTop/lineBottom = actual outermost staff line pixels (no padding).
+      // These are used for gap measurement to keep inter-stave metrics accurate.
+      const lineTop    = segments[i].top;
+      const lineBottom = segments[i + 4].bottom;
+      // Pad slightly above/below for the render crop box.
       const padding = Math.round(avgGap * 0.6);
       staves.push({
-        top: Math.max(0, segments[i].top - padding),
-        bottom: Math.min(height - 1, segments[i + 4].bottom + padding),
+        lineTop,
+        lineBottom,
+        top:    Math.max(0, lineTop - padding),
+        bottom: Math.min(height - 1, lineBottom + padding),
         pageIndex,
       });
       i += 5; // skip past the matched 5 lines
@@ -98,60 +114,70 @@ export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Prom
 // ─── Task 4: detectSystems ───────────────────────────────────────────────────
 
 /**
- * Groups staves into systems.
+ * Finds the natural split point in a sorted list of gap values.
  *
- * Uses an adaptive threshold: computes all same-page consecutive gaps first,
- * then treats any gap > 2× the minimum gap as a system break.
- * This reliably separates intra-system spacing (which varies but stays
- * proportional) from the larger white-space gaps between systems.
+ * Strategy: use the smallest gap as the baseline "intra-system" spacing.
+ * Any gap that is significantly larger (≥ 1.35×) than the baseline is
+ * considered an inter-system gap.  This threshold is permissive enough to
+ * handle orchestral scores where the inter-system gap is only a little larger
+ * than the instrument spacing within a system (ratio ~1.5–2.5×).
+ *
+ * Returns a threshold value if a clear split exists, otherwise null.
  */
-export function detectSystems(staves: StaffBox[]): System[] {
-  if (staves.length === 0) return [];
-
-  // Collect all same-page consecutive gaps to find the minimum spacing.
-  const gaps: number[] = [];
-  for (let i = 1; i < staves.length; i++) {
-    if (staves[i].pageIndex === staves[i - 1].pageIndex) {
-      gaps.push(staves[i].top - staves[i - 1].bottom);
+function gapBifurcationThreshold(gaps: number[]): number | null {
+  if (gaps.length < 2) return null;
+  const sorted = [...gaps].sort((a, b) => a - b);
+  // Find the largest jump in sorted gaps
+  let maxRatio = 1;
+  let splitIdx = -1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i - 1] > 0) {
+      const ratio = sorted[i] / sorted[i - 1];
+      if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i; }
     }
   }
+  // Accept a split if the jump is at least 1.35× — covers cases where
+  // inter-system ≈ 1.5× intra-system (dense orchestral pages).
+  if (maxRatio >= 1.35 && splitIdx >= 0) {
+    return (sorted[splitIdx - 1] + sorted[splitIdx]) / 2;
+  }
+  return null;
+}
 
-  // Inter-system gaps are always > 2× the tightest intra-system spacing.
-  const minGap = gaps.length > 0 ? Math.min(...gaps) : 50;
-  const MAX_INTER_STAFF_GAP = minGap * 2;
+/**
+ * Groups staves into systems using per-page gap bifurcation as the primary
+ * signal.  For pages where gap sizes are unimodal (single-staff scores, or
+ * unusual layouts), an async connector-scan fallback is used instead.
+ *
+ * Export kept for external use / testing.
+ */
+export function detectSystems(staves: StaffBox[]): System[] {
+  // Synchronous gap-only path — used when we don't have page images.
+  // Per-page bifurcation is more reliable than a global 2× minimum.
+  const byPage = new Map<number, StaffBox[]>();
+  for (const s of staves) {
+    (byPage.get(s.pageIndex) ?? (byPage.set(s.pageIndex, []), byPage.get(s.pageIndex)!)).push(s);
+  }
 
   const systems: System[] = [];
   let systemIndex = 0;
-  let current: StaffBox[] = [];
 
-  for (let i = 0; i < staves.length; i++) {
-    if (current.length === 0) {
-      current.push(staves[i]);
-    } else {
-      const prev = current[current.length - 1];
-      const samePageAndClose =
-        staves[i].pageIndex === prev.pageIndex &&
-        staves[i].top - prev.bottom < MAX_INTER_STAFF_GAP;
+  for (const pageStaves of byPage.values()) {
+    const gaps = pageStaves.slice(1).map((s, i) => s.lineTop - pageStaves[i].lineBottom);
+    const threshold = gapBifurcationThreshold(gaps);
 
-      if (samePageAndClose) {
-        current.push(staves[i]);
+    let current = [pageStaves[0]];
+    for (let i = 1; i < pageStaves.length; i++) {
+      // If no clear threshold: treat everything on the page as separate systems
+      // (conservative — the UI merge tool handles incorrect splits easily).
+      if (threshold !== null && gaps[i - 1] <= threshold) {
+        current.push(pageStaves[i]);
       } else {
-        systems.push({
-          systemIndex: systemIndex++,
-          pageIndex: current[0].pageIndex,
-          staves: current,
-        });
-        current = [staves[i]];
+        systems.push({ systemIndex: systemIndex++, pageIndex: current[0].pageIndex, staves: current });
+        current = [pageStaves[i]];
       }
     }
-  }
-
-  if (current.length > 0) {
-    systems.push({
-      systemIndex: systemIndex,
-      pageIndex: current[0].pageIndex,
-      staves: current,
-    });
+    systems.push({ systemIndex: systemIndex++, pageIndex: current[0].pageIndex, staves: current });
   }
 
   return systems;
@@ -160,22 +186,93 @@ export function detectSystems(staves: StaffBox[]): System[] {
 // ─── Task 5: analyzeScore ────────────────────────────────────────────────────
 
 /**
+ * Returns true if a barline/bracket runs continuously through the vertical
+ * gap between two consecutive staves (indicating they belong to the same
+ * system).  Scans the left 40% (covers first-system instrument labels) and
+ * requires ≥80% of gap rows to be dark in at least one column, which is the
+ * signature of a bracket/barline and is high enough to reject incidental
+ * text, dynamics, or rehearsal marks that fall in inter-system gaps.
+ */
+async function hasLeftEdgeConnector(
+  imageBuffer: Buffer,
+  gapTop: number,
+  gapBottom: number,
+  imageWidth: number,
+): Promise<boolean> {
+  const gapHeight = gapBottom - gapTop;
+  if (gapHeight <= 0) return true;
+  const scanWidth = Math.round(imageWidth * 0.40);
+  const { data, info } = await sharp(imageBuffer)
+    .extract({ left: 0, top: gapTop, width: scanWidth, height: gapHeight })
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const minDark = Math.ceil(gapHeight * 0.80);
+  for (let x = 0; x < info.width; x++) {
+    let dark = 0;
+    for (let y = 0; y < info.height; y++) {
+      if (data[y * info.width + x] < 200) dark++;  // match staff-line grey threshold
+    }
+    if (dark >= minDark) return true;
+  }
+  return false;
+}
+
+/**
  * Runs staff and system detection across all pages of a PDF.
- * Returns a ScoreAnalysis with all detected systems in page order.
+ *
+ * Strategy (per page):
+ * 1. Collect gaps between consecutive staves.
+ * 2. Try sorted-gap bifurcation — if gaps split clearly into two clusters
+ *    (ratio ≥ 2×), use the midpoint as the intra/inter-system boundary.
+ * 3. If gaps are unimodal (ambiguous) — fall back to connector scan:
+ *    scan the left 40% of each gap for a solid bracket/barline column.
+ *    This correctly handles both multi-stave scores (connector present)
+ *    and single-staff scores (no connector → each stave is its own system).
  */
 export async function analyzeScore(pdfPath: string): Promise<ScoreAnalysis> {
   const fileData = readFileSync(pdfPath);
   const doc = mupdf.Document.openDocument(fileData, 'application/pdf');
   const pageCount = doc.countPages();
 
-  const allStaves: StaffBox[] = [];
+  const systems: System[] = [];
+  let systemIndex = 0;
+
   for (let i = 0; i < pageCount; i++) {
     const imgBuffer = renderPageToImage(pdfPath, i);
-    const staves = await detectStaves(imgBuffer, i);
-    allStaves.push(...staves);
+    const { width: imageWidth } = await sharp(imgBuffer).metadata();
+    const pageStaves = await detectStaves(imgBuffer, i);
+
+    if (pageStaves.length === 0) continue;
+
+    const gaps = pageStaves.slice(1).map((s, idx) => s.lineTop - pageStaves[idx].lineBottom);
+    const threshold = gapBifurcationThreshold(gaps);
+
+    let current = [pageStaves[0]];
+
+    for (let j = 1; j < pageStaves.length; j++) {
+      let sameSystem: boolean;
+
+      if (threshold !== null) {
+        // Gap-based: clear bimodal distribution
+        sameSystem = gaps[j - 1] <= threshold;
+      } else {
+        // Connector fallback: scan for bracket/barline in the gap
+        sameSystem = await hasLeftEdgeConnector(
+          imgBuffer, pageStaves[j - 1].lineBottom, pageStaves[j].lineTop, imageWidth!
+        );
+      }
+
+      if (sameSystem) {
+        current.push(pageStaves[j]);
+      } else {
+        systems.push({ systemIndex: systemIndex++, pageIndex: i, staves: current });
+        current = [pageStaves[j]];
+      }
+    }
+    systems.push({ systemIndex: systemIndex++, pageIndex: i, staves: current });
   }
 
-  const systems = detectSystems(allStaves);
   return { pageCount, systems };
 }
 
@@ -314,7 +411,9 @@ function expandedCropBox(
   const bottomPad = Math.round(staffHeight * PAD_BELOW);
 
   return {
-    pageIndex: staffBox.pageIndex,
+    pageIndex:   staffBox.pageIndex,
+    lineTop:     staffBox.lineTop,
+    lineBottom:  staffBox.lineBottom,
     top:    Math.max(0, staffBox.top - topPad),
     bottom: Math.min(imageHeight - 1, staffBox.bottom + bottomPad),
   };

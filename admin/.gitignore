@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+
+# uploaded PDFs and rendered page images (ephemeral, not committed)
+/tmp
 /.pnp
 .pnp.*
 .yarn/*

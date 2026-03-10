@@ -1,6 +1,10 @@
 export interface StaffBox {
-  top: number;      // pixel row on the page image
+  /** Padded render bounds — used for image cropping */
+  top: number;
   bottom: number;
+  /** True staff-line bounds — used for gap measurement and system grouping */
+  lineTop: number;
+  lineBottom: number;
   pageIndex: number;
 }
 
