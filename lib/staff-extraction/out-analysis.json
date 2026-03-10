@@ -1,0 +1,673 @@
+{
+  "systems": [
+    {
+      "systemIndex": 0,
+      "pageIndex": 0,
+      "staves": [
+        {
+          "top": 1537,
+          "bottom": 1812,
+          "pageIndex": 0
+        },
+        {
+          "top": 2084,
+          "bottom": 2359,
+          "pageIndex": 0
+        },
+        {
+          "top": 2631,
+          "bottom": 2906,
+          "pageIndex": 0
+        },
+        {
+          "top": 3178,
+          "bottom": 3453,
+          "pageIndex": 0
+        },
+        {
+          "top": 3725,
+          "bottom": 4000,
+          "pageIndex": 0
+        }
+      ]
+    },
+    {
+      "systemIndex": 1,
+      "pageIndex": 0,
+      "staves": [
+        {
+          "top": 4714,
+          "bottom": 4989,
+          "pageIndex": 0
+        },
+        {
+          "top": 5405,
+          "bottom": 5680,
+          "pageIndex": 0
+        },
+        {
+          "top": 6097,
+          "bottom": 6372,
+          "pageIndex": 0
+        },
+        {
+          "top": 6904,
+          "bottom": 7179,
+          "pageIndex": 0
+        },
+        {
+          "top": 7696,
+          "bottom": 7972,
+          "pageIndex": 0
+        }
+      ]
+    },
+    {
+      "systemIndex": 2,
+      "pageIndex": 1,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 1
+        },
+        {
+          "top": 1294,
+          "bottom": 1569,
+          "pageIndex": 1
+        },
+        {
+          "top": 1841,
+          "bottom": 2116,
+          "pageIndex": 1
+        },
+        {
+          "top": 2456,
+          "bottom": 2731,
+          "pageIndex": 1
+        },
+        {
+          "top": 3165,
+          "bottom": 3440,
+          "pageIndex": 1
+        }
+      ]
+    },
+    {
+      "systemIndex": 3,
+      "pageIndex": 1,
+      "staves": [
+        {
+          "top": 4154,
+          "bottom": 4429,
+          "pageIndex": 1
+        },
+        {
+          "top": 4701,
+          "bottom": 4976,
+          "pageIndex": 1
+        },
+        {
+          "top": 5301,
+          "bottom": 5576,
+          "pageIndex": 1
+        },
+        {
+          "top": 6006,
+          "bottom": 6282,
+          "pageIndex": 1
+        },
+        {
+          "top": 6601,
+          "bottom": 6876,
+          "pageIndex": 1
+        }
+      ]
+    },
+    {
+      "systemIndex": 4,
+      "pageIndex": 2,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 2
+        },
+        {
+          "top": 1294,
+          "bottom": 1569,
+          "pageIndex": 2
+        },
+        {
+          "top": 1869,
+          "bottom": 2144,
+          "pageIndex": 2
+        },
+        {
+          "top": 2534,
+          "bottom": 2809,
+          "pageIndex": 2
+        },
+        {
+          "top": 3090,
+          "bottom": 3365,
+          "pageIndex": 2
+        }
+      ]
+    },
+    {
+      "systemIndex": 5,
+      "pageIndex": 2,
+      "staves": [
+        {
+          "top": 4079,
+          "bottom": 4354,
+          "pageIndex": 2
+        },
+        {
+          "top": 4788,
+          "bottom": 5063,
+          "pageIndex": 2
+        },
+        {
+          "top": 5496,
+          "bottom": 5772,
+          "pageIndex": 2
+        },
+        {
+          "top": 6254,
+          "bottom": 6529,
+          "pageIndex": 2
+        },
+        {
+          "top": 6977,
+          "bottom": 7252,
+          "pageIndex": 2
+        }
+      ]
+    },
+    {
+      "systemIndex": 6,
+      "pageIndex": 3,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 3
+        },
+        {
+          "top": 1294,
+          "bottom": 1569,
+          "pageIndex": 3
+        },
+        {
+          "top": 1859,
+          "bottom": 2135,
+          "pageIndex": 3
+        },
+        {
+          "top": 2500,
+          "bottom": 2775,
+          "pageIndex": 3
+        },
+        {
+          "top": 3047,
+          "bottom": 3322,
+          "pageIndex": 3
+        }
+      ]
+    },
+    {
+      "systemIndex": 7,
+      "pageIndex": 3,
+      "staves": [
+        {
+          "top": 4036,
+          "bottom": 4312,
+          "pageIndex": 3
+        },
+        {
+          "top": 4797,
+          "bottom": 5072,
+          "pageIndex": 3
+        },
+        {
+          "top": 5508,
+          "bottom": 5783,
+          "pageIndex": 3
+        },
+        {
+          "top": 6090,
+          "bottom": 6365,
+          "pageIndex": 3
+        },
+        {
+          "top": 6819,
+          "bottom": 7094,
+          "pageIndex": 3
+        }
+      ]
+    },
+    {
+      "systemIndex": 8,
+      "pageIndex": 4,
+      "staves": [
+        {
+          "top": 763,
+          "bottom": 1038,
+          "pageIndex": 4
+        },
+        {
+          "top": 1310,
+          "bottom": 1585,
+          "pageIndex": 4
+        },
+        {
+          "top": 2102,
+          "bottom": 2377,
+          "pageIndex": 4
+        },
+        {
+          "top": 2649,
+          "bottom": 2924,
+          "pageIndex": 4
+        },
+        {
+          "top": 3430,
+          "bottom": 3705,
+          "pageIndex": 4
+        }
+      ]
+    },
+    {
+      "systemIndex": 9,
+      "pageIndex": 4,
+      "staves": [
+        {
+          "top": 4419,
+          "bottom": 4694,
+          "pageIndex": 4
+        },
+        {
+          "top": 5160,
+          "bottom": 5435,
+          "pageIndex": 4
+        },
+        {
+          "top": 5852,
+          "bottom": 6127,
+          "pageIndex": 4
+        },
+        {
+          "top": 6401,
+          "bottom": 6676,
+          "pageIndex": 4
+        },
+        {
+          "top": 6999,
+          "bottom": 7274,
+          "pageIndex": 4
+        }
+      ]
+    },
+    {
+      "systemIndex": 10,
+      "pageIndex": 5,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 5
+        },
+        {
+          "top": 1378,
+          "bottom": 1653,
+          "pageIndex": 5
+        },
+        {
+          "top": 2000,
+          "bottom": 2275,
+          "pageIndex": 5
+        }
+      ]
+    },
+    {
+      "systemIndex": 11,
+      "pageIndex": 5,
+      "staves": [
+        {
+          "top": 2861,
+          "bottom": 3136,
+          "pageIndex": 5
+        },
+        {
+          "top": 3611,
+          "bottom": 3886,
+          "pageIndex": 5
+        }
+      ]
+    },
+    {
+      "systemIndex": 12,
+      "pageIndex": 5,
+      "staves": [
+        {
+          "top": 4601,
+          "bottom": 4876,
+          "pageIndex": 5
+        },
+        {
+          "top": 5148,
+          "bottom": 5423,
+          "pageIndex": 5
+        },
+        {
+          "top": 5714,
+          "bottom": 5989,
+          "pageIndex": 5
+        },
+        {
+          "top": 6367,
+          "bottom": 6642,
+          "pageIndex": 5
+        },
+        {
+          "top": 6914,
+          "bottom": 7189,
+          "pageIndex": 5
+        }
+      ]
+    },
+    {
+      "systemIndex": 13,
+      "pageIndex": 6,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 6
+        },
+        {
+          "top": 1294,
+          "bottom": 1569,
+          "pageIndex": 6
+        },
+        {
+          "top": 1859,
+          "bottom": 2134,
+          "pageIndex": 6
+        },
+        {
+          "top": 2541,
+          "bottom": 2816,
+          "pageIndex": 6
+        },
+        {
+          "top": 3107,
+          "bottom": 3382,
+          "pageIndex": 6
+        }
+      ]
+    },
+    {
+      "systemIndex": 14,
+      "pageIndex": 6,
+      "staves": [
+        {
+          "top": 4130,
+          "bottom": 4406,
+          "pageIndex": 6
+        },
+        {
+          "top": 4837,
+          "bottom": 5112,
+          "pageIndex": 6
+        },
+        {
+          "top": 5545,
+          "bottom": 5820,
+          "pageIndex": 6
+        },
+        {
+          "top": 6275,
+          "bottom": 6550,
+          "pageIndex": 6
+        },
+        {
+          "top": 7023,
+          "bottom": 7298,
+          "pageIndex": 6
+        }
+      ]
+    },
+    {
+      "systemIndex": 15,
+      "pageIndex": 7,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 7
+        },
+        {
+          "top": 1366,
+          "bottom": 1641,
+          "pageIndex": 7
+        },
+        {
+          "top": 2063,
+          "bottom": 2338,
+          "pageIndex": 7
+        },
+        {
+          "top": 2853,
+          "bottom": 3128,
+          "pageIndex": 7
+        },
+        {
+          "top": 3586,
+          "bottom": 3861,
+          "pageIndex": 7
+        }
+      ]
+    },
+    {
+      "systemIndex": 16,
+      "pageIndex": 7,
+      "staves": [
+        {
+          "top": 4575,
+          "bottom": 4850,
+          "pageIndex": 7
+        },
+        {
+          "top": 5284,
+          "bottom": 5559,
+          "pageIndex": 7
+        },
+        {
+          "top": 5993,
+          "bottom": 6268,
+          "pageIndex": 7
+        },
+        {
+          "top": 6701,
+          "bottom": 6976,
+          "pageIndex": 7
+        },
+        {
+          "top": 7410,
+          "bottom": 7685,
+          "pageIndex": 7
+        }
+      ]
+    },
+    {
+      "systemIndex": 17,
+      "pageIndex": 8,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 8
+        },
+        {
+          "top": 1453,
+          "bottom": 1728,
+          "pageIndex": 8
+        },
+        {
+          "top": 2167,
+          "bottom": 2442,
+          "pageIndex": 8
+        },
+        {
+          "top": 2922,
+          "bottom": 3197,
+          "pageIndex": 8
+        },
+        {
+          "top": 3628,
+          "bottom": 3903,
+          "pageIndex": 8
+        }
+      ]
+    },
+    {
+      "systemIndex": 18,
+      "pageIndex": 8,
+      "staves": [
+        {
+          "top": 4581,
+          "bottom": 4856,
+          "pageIndex": 8
+        },
+        {
+          "top": 5294,
+          "bottom": 5569,
+          "pageIndex": 8
+        },
+        {
+          "top": 5980,
+          "bottom": 6255,
+          "pageIndex": 8
+        },
+        {
+          "top": 6709,
+          "bottom": 6984,
+          "pageIndex": 8
+        },
+        {
+          "top": 7508,
+          "bottom": 7783,
+          "pageIndex": 8
+        }
+      ]
+    },
+    {
+      "systemIndex": 19,
+      "pageIndex": 9,
+      "staves": [
+        {
+          "top": 747,
+          "bottom": 1022,
+          "pageIndex": 9
+        },
+        {
+          "top": 1338,
+          "bottom": 1613,
+          "pageIndex": 9
+        },
+        {
+          "top": 1885,
+          "bottom": 2160,
+          "pageIndex": 9
+        },
+        {
+          "top": 2432,
+          "bottom": 2707,
+          "pageIndex": 9
+        },
+        {
+          "top": 2981,
+          "bottom": 3256,
+          "pageIndex": 9
+        }
+      ]
+    },
+    {
+      "systemIndex": 20,
+      "pageIndex": 9,
+      "staves": [
+        {
+          "top": 3970,
+          "bottom": 4245,
+          "pageIndex": 9
+        },
+        {
+          "top": 4527,
+          "bottom": 4802,
+          "pageIndex": 9
+        },
+        {
+          "top": 5074,
+          "bottom": 5349,
+          "pageIndex": 9
+        },
+        {
+          "top": 5671,
+          "bottom": 5946,
+          "pageIndex": 9
+        },
+        {
+          "top": 6289,
+          "bottom": 6564,
+          "pageIndex": 9
+        }
+      ]
+    },
+    {
+      "systemIndex": 21,
+      "pageIndex": 10,
+      "staves": [
+        {
+          "top": 963,
+          "bottom": 1238,
+          "pageIndex": 10
+        },
+        {
+          "top": 1772,
+          "bottom": 2047,
+          "pageIndex": 10
+        },
+        {
+          "top": 2574,
+          "bottom": 2849,
+          "pageIndex": 10
+        }
+      ]
+    },
+    {
+      "systemIndex": 22,
+      "pageIndex": 10,
+      "staves": [
+        {
+          "top": 3423,
+          "bottom": 3698,
+          "pageIndex": 10
+        }
+      ]
+    },
+    {
+      "systemIndex": 23,
+      "pageIndex": 10,
+      "staves": [
+        {
+          "top": 4272,
+          "bottom": 4547,
+          "pageIndex": 10
+        }
+      ]
+    }
+  ]
+}
