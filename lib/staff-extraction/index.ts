@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import mupdf from 'mupdf';
 import sharp from 'sharp';
-import type { StaffBox, System, ScoreAnalysis, StaffSelection } from './types.js';
+import type { StaffBox, ScoreAnalysis, StaffSelection } from './types.js';
 
 // PDF points are 72 DPI; 150 DPI gives enough resolution for reliable line detection.
 const RENDER_DPI = 150;
@@ -111,169 +111,28 @@ export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Prom
   return staves;
 }
 
-// ─── Task 4: detectSystems ───────────────────────────────────────────────────
-
-/**
- * Finds the natural split point in a sorted list of gap values.
- *
- * Strategy: use the smallest gap as the baseline "intra-system" spacing.
- * Any gap that is significantly larger (≥ 1.35×) than the baseline is
- * considered an inter-system gap.  This threshold is permissive enough to
- * handle orchestral scores where the inter-system gap is only a little larger
- * than the instrument spacing within a system (ratio ~1.5–2.5×).
- *
- * Returns a threshold value if a clear split exists, otherwise null.
- */
-function gapBifurcationThreshold(gaps: number[]): number | null {
-  if (gaps.length < 2) return null;
-  const sorted = [...gaps].sort((a, b) => a - b);
-  // Find the largest jump in sorted gaps
-  let maxRatio = 1;
-  let splitIdx = -1;
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i - 1] > 0) {
-      const ratio = sorted[i] / sorted[i - 1];
-      if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i; }
-    }
-  }
-  // Accept a split if the jump is at least 1.35× — covers cases where
-  // inter-system ≈ 1.5× intra-system (dense orchestral pages).
-  if (maxRatio >= 1.35 && splitIdx >= 0) {
-    return (sorted[splitIdx - 1] + sorted[splitIdx]) / 2;
-  }
-  return null;
-}
-
-/**
- * Groups staves into systems using per-page gap bifurcation as the primary
- * signal.  For pages where gap sizes are unimodal (single-staff scores, or
- * unusual layouts), an async connector-scan fallback is used instead.
- *
- * Export kept for external use / testing.
- */
-export function detectSystems(staves: StaffBox[]): System[] {
-  // Synchronous gap-only path — used when we don't have page images.
-  // Per-page bifurcation is more reliable than a global 2× minimum.
-  const byPage = new Map<number, StaffBox[]>();
-  for (const s of staves) {
-    (byPage.get(s.pageIndex) ?? (byPage.set(s.pageIndex, []), byPage.get(s.pageIndex)!)).push(s);
-  }
-
-  const systems: System[] = [];
-  let systemIndex = 0;
-
-  for (const pageStaves of byPage.values()) {
-    const gaps = pageStaves.slice(1).map((s, i) => s.lineTop - pageStaves[i].lineBottom);
-    const threshold = gapBifurcationThreshold(gaps);
-
-    let current = [pageStaves[0]];
-    for (let i = 1; i < pageStaves.length; i++) {
-      // If no clear threshold: treat everything on the page as separate systems
-      // (conservative — the UI merge tool handles incorrect splits easily).
-      if (threshold !== null && gaps[i - 1] <= threshold) {
-        current.push(pageStaves[i]);
-      } else {
-        systems.push({ systemIndex: systemIndex++, pageIndex: current[0].pageIndex, staves: current });
-        current = [pageStaves[i]];
-      }
-    }
-    systems.push({ systemIndex: systemIndex++, pageIndex: current[0].pageIndex, staves: current });
-  }
-
-  return systems;
-}
-
 // ─── Task 5: analyzeScore ────────────────────────────────────────────────────
 
 /**
- * Returns true if a barline/bracket runs continuously through the vertical
- * gap between two consecutive staves (indicating they belong to the same
- * system).  Scans the left 40% (covers first-system instrument labels) and
- * requires ≥80% of gap rows to be dark in at least one column, which is the
- * signature of a bracket/barline and is high enough to reject incidental
- * text, dynamics, or rehearsal marks that fall in inter-system gaps.
- */
-async function hasLeftEdgeConnector(
-  imageBuffer: Buffer,
-  gapTop: number,
-  gapBottom: number,
-  imageWidth: number,
-): Promise<boolean> {
-  const gapHeight = gapBottom - gapTop;
-  if (gapHeight <= 0) return true;
-  const scanWidth = Math.round(imageWidth * 0.40);
-  const { data, info } = await sharp(imageBuffer)
-    .extract({ left: 0, top: gapTop, width: scanWidth, height: gapHeight })
-    .greyscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const minDark = Math.ceil(gapHeight * 0.80);
-  for (let x = 0; x < info.width; x++) {
-    let dark = 0;
-    for (let y = 0; y < info.height; y++) {
-      if (data[y * info.width + x] < 200) dark++;  // match staff-line grey threshold
-    }
-    if (dark >= minDark) return true;
-  }
-  return false;
-}
-
-/**
- * Runs staff and system detection across all pages of a PDF.
+ * Detects all staves across every page of a PDF and returns them as a flat
+ * list in page order (top-to-bottom within each page).
  *
- * Strategy (per page):
- * 1. Collect gaps between consecutive staves.
- * 2. Try sorted-gap bifurcation — if gaps split clearly into two clusters
- *    (ratio ≥ 2×), use the midpoint as the intra/inter-system boundary.
- * 3. If gaps are unimodal (ambiguous) — fall back to connector scan:
- *    scan the left 40% of each gap for a solid bracket/barline column.
- *    This correctly handles both multi-stave scores (connector present)
- *    and single-staff scores (no connector → each stave is its own system).
+ * System grouping is intentionally omitted — the user selects individual
+ * staves in the UI, so no automatic grouping is needed or desired.
  */
 export async function analyzeScore(pdfPath: string): Promise<ScoreAnalysis> {
   const fileData = readFileSync(pdfPath);
   const doc = mupdf.Document.openDocument(fileData, 'application/pdf');
   const pageCount = doc.countPages();
 
-  const systems: System[] = [];
-  let systemIndex = 0;
-
+  const staves: StaffBox[] = [];
   for (let i = 0; i < pageCount; i++) {
     const imgBuffer = renderPageToImage(pdfPath, i);
-    const { width: imageWidth } = await sharp(imgBuffer).metadata();
     const pageStaves = await detectStaves(imgBuffer, i);
-
-    if (pageStaves.length === 0) continue;
-
-    const gaps = pageStaves.slice(1).map((s, idx) => s.lineTop - pageStaves[idx].lineBottom);
-    const threshold = gapBifurcationThreshold(gaps);
-
-    let current = [pageStaves[0]];
-
-    for (let j = 1; j < pageStaves.length; j++) {
-      let sameSystem: boolean;
-
-      if (threshold !== null) {
-        // Gap-based: clear bimodal distribution
-        sameSystem = gaps[j - 1] <= threshold;
-      } else {
-        // Connector fallback: scan for bracket/barline in the gap
-        sameSystem = await hasLeftEdgeConnector(
-          imgBuffer, pageStaves[j - 1].lineBottom, pageStaves[j].lineTop, imageWidth!
-        );
-      }
-
-      if (sameSystem) {
-        current.push(pageStaves[j]);
-      } else {
-        systems.push({ systemIndex: systemIndex++, pageIndex: i, staves: current });
-        current = [pageStaves[j]];
-      }
-    }
-    systems.push({ systemIndex: systemIndex++, pageIndex: i, staves: current });
+    staves.push(...pageStaves);
   }
 
-  return { pageCount, systems };
+  return { pageCount, staves };
 }
 
 // ─── Task 7: extractStrip ────────────────────────────────────────────────────
@@ -400,12 +259,7 @@ export async function stitchStrips(strips: Buffer[]): Promise<Buffer> {
 const PAD_ABOVE = 0.15;
 const PAD_BELOW = 1.30;
 
-function expandedCropBox(
-  staffBox: StaffBox,
-  _staffIndexInSystem: number,
-  _systemStaves: StaffBox[],
-  imageHeight: number
-): StaffBox {
+function expandedCropBox(staffBox: StaffBox, imageHeight: number): StaffBox {
   const staffHeight = staffBox.bottom - staffBox.top;
   const topPad    = Math.round(staffHeight * PAD_ABOVE);
   const bottomPad = Math.round(staffHeight * PAD_BELOW);
@@ -419,11 +273,16 @@ function expandedCropBox(
   };
 }
 
+/**
+ * Builds a horizontal scroll PNG from an explicit ordered list of staves.
+ * Each stave is expanded to a consistent proportional crop and stitched
+ * left-to-right.
+ */
 export async function buildScrollImage(
   pdfPath: string,
-  selection: StaffSelection
+  selectedStaves: StaffBox[],
 ): Promise<Buffer> {
-  const analysis = await analyzeScore(pdfPath);
+  if (selectedStaves.length === 0) throw new Error('No staves selected.');
 
   // Cache rendered page images — each page is only rasterised once.
   const pageCache = new Map<number, Buffer>();
@@ -434,7 +293,6 @@ export async function buildScrollImage(
     return pageCache.get(pageIndex)!;
   };
 
-  // Pre-compute image heights for clamping expanded crop boxes.
   const pageHeightCache = new Map<number, number>();
   const getPageHeight = async (pageIndex: number): Promise<number> => {
     if (!pageHeightCache.has(pageIndex)) {
@@ -445,38 +303,14 @@ export async function buildScrollImage(
   };
 
   const strips: Buffer[] = [];
-
-  for (const system of analysis.systems) {
-    // Determine which staff index to use for this system
-    let staffIndex: number;
-    if (selection.mode === 'global') {
-      staffIndex = selection.staffIndex;
-    } else {
-      staffIndex = selection.map[system.systemIndex] ?? 0;
-    }
-
-    let staffBox = system.staves[staffIndex];
-    if (!staffBox) {
-      // Fewer staves than usual — voices have been consolidated. Fall back to
-      // the last available staff (voices merge downward in condensed systems).
-      const fallback = system.staves.length - 1;
-      console.warn(
-        `System ${system.systemIndex} has only ${system.staves.length} staves; ` +
-          `index ${staffIndex} not found. Using last staff (index ${fallback}).`
-      );
-      staffBox = system.staves[fallback];
-    }
-
-    const imageHeight = await getPageHeight(system.pageIndex);
-    const cropBox = expandedCropBox(staffBox, staffIndex, system.staves, imageHeight);
-    const pageImage = getPageImage(system.pageIndex);
-    const strip = await extractStrip(pageImage, cropBox);
+  for (const staffBox of selectedStaves) {
+    const imageHeight = await getPageHeight(staffBox.pageIndex);
+    const cropBox = expandedCropBox(staffBox, imageHeight);
+    const strip = await extractStrip(getPageImage(staffBox.pageIndex), cropBox);
     strips.push(strip);
   }
-
-  if (strips.length === 0) throw new Error('No strips could be extracted with the given selection.');
 
   return stitchStrips(strips);
 }
 
-export type { StaffBox, System, ScoreAnalysis, StaffSelection };
+export type { StaffBox, ScoreAnalysis, StaffSelection };

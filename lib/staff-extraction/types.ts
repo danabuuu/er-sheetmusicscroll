@@ -8,17 +8,14 @@ export interface StaffBox {
   pageIndex: number;
 }
 
-export interface System {
-  systemIndex: number;  // 0-based, sequential across all pages
-  pageIndex: number;
+export interface ScoreAnalysis {
+  pageCount: number;
+  /** All detected staves across all pages, in page order top-to-bottom. */
   staves: StaffBox[];
 }
 
-export interface ScoreAnalysis {
-  pageCount: number;
-  systems: System[];
-}
-
-export type StaffSelection =
-  | { mode: 'global'; staffIndex: number }
-  | { mode: 'per-system'; map: Record<number, number> }; // systemIndex → staffIndex
+/**
+ * Ordered list of indices into ScoreAnalysis.staves.
+ * The nth entry in this array becomes the nth strip in the final scroll image.
+ */
+export type StaffSelection = number[];

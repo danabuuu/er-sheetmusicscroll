@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { existsSync } from 'fs';
-import type { StaffSelection } from '@lib/staff-extraction/types';
+import { existsSync, readFileSync } from 'fs';
+import type { ScoreAnalysis } from '@lib/staff-extraction/types';
 import { buildScrollImage } from '@lib/staff-extraction';
-import { pdfPath, isValidJobId } from '@/lib/jobs';
+import { pdfPath, analysisPath, isValidJobId } from '@/lib/jobs';
 
 export async function POST(request: NextRequest) {
-  const body = await request.json() as { jobId?: unknown; selection?: unknown };
+  const body = await request.json() as { jobId?: unknown; staveIndices?: unknown };
 
-  const { jobId, selection } = body;
+  const { jobId, staveIndices } = body;
 
   if (typeof jobId !== 'string' || !isValidJobId(jobId)) {
     return NextResponse.json({ error: 'Invalid or missing jobId' }, { status: 400 });
   }
-  if (!selection || typeof selection !== 'object') {
-    return NextResponse.json({ error: 'Missing selection' }, { status: 400 });
+  if (!Array.isArray(staveIndices) || staveIndices.length === 0) {
+    return NextResponse.json({ error: 'staveIndices must be a non-empty array' }, { status: 400 });
   }
 
   const pdf = pdfPath(jobId);
@@ -21,7 +21,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   }
 
-  const png = await buildScrollImage(pdf, selection as StaffSelection);
+  // Resolve indices → StaffBox objects from the saved analysis
+  const analysis: ScoreAnalysis = JSON.parse(readFileSync(analysisPath(jobId), 'utf8'));
+  const selectedStaves = (staveIndices as number[]).map(i => {
+    const stave = analysis.staves[i];
+    if (!stave) throw new Error(`Stave index ${i} out of range`);
+    return stave;
+  });
+
+  const png = await buildScrollImage(pdf, selectedStaves);
 
   return new NextResponse(png, {
     headers: {

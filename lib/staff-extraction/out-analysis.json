@@ -1,932 +1,166 @@
 {
-  "pageCount": 11,
-  "systems": [
+  "pageCount": 2,
+  "staves": [
     {
-      "systemIndex": 0,
-      "pageIndex": 0,
-      "staves": [
-        {
-          "lineTop": 1568,
-          "lineBottom": 1781,
-          "top": 1537,
-          "bottom": 1812,
-          "pageIndex": 0
-        },
-        {
-          "lineTop": 2115,
-          "lineBottom": 2328,
-          "top": 2084,
-          "bottom": 2359,
-          "pageIndex": 0
-        },
-        {
-          "lineTop": 2662,
-          "lineBottom": 2875,
-          "top": 2631,
-          "bottom": 2906,
-          "pageIndex": 0
-        },
-        {
-          "lineTop": 3208,
-          "lineBottom": 3422,
-          "top": 3177,
-          "bottom": 3453,
-          "pageIndex": 0
-        },
-        {
-          "lineTop": 3755,
-          "lineBottom": 3917,
-          "top": 3731,
-          "bottom": 3941,
-          "pageIndex": 0
-        }
-      ]
+      "lineTop": 287,
+      "lineBottom": 317,
+      "top": 282,
+      "bottom": 322,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 1,
-      "pageIndex": 0,
-      "staves": [
-        {
-          "lineTop": 4745,
-          "lineBottom": 4958,
-          "top": 4714,
-          "bottom": 4989,
-          "pageIndex": 0
-        }
-      ]
+      "lineTop": 380,
+      "lineBottom": 411,
+      "top": 375,
+      "bottom": 416,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 2,
-      "pageIndex": 0,
-      "staves": [
-        {
-          "lineTop": 5436,
-          "lineBottom": 5650,
-          "top": 5405,
-          "bottom": 5681,
-          "pageIndex": 0
-        }
-      ]
+      "lineTop": 467,
+      "lineBottom": 497,
+      "top": 462,
+      "bottom": 502,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 3,
-      "pageIndex": 0,
-      "staves": [
-        {
-          "lineTop": 6127,
-          "lineBottom": 6341,
-          "top": 6096,
-          "bottom": 6372,
-          "pageIndex": 0
-        }
-      ]
+      "lineTop": 656,
+      "lineBottom": 687,
+      "top": 651,
+      "bottom": 692,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 4,
-      "pageIndex": 0,
-      "staves": [
-        {
-          "lineTop": 6935,
-          "lineBottom": 7148,
-          "top": 6904,
-          "bottom": 7179,
-          "pageIndex": 0
-        }
-      ]
+      "lineTop": 749,
+      "lineBottom": 780,
+      "top": 744,
+      "bottom": 785,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 5,
-      "pageIndex": 0,
-      "staves": [
-        {
-          "lineTop": 7727,
-          "lineBottom": 7889,
-          "top": 7704,
-          "bottom": 7912,
-          "pageIndex": 0
-        }
-      ]
+      "lineTop": 840,
+      "lineBottom": 874,
+      "top": 835,
+      "bottom": 879,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 6,
-      "pageIndex": 1,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 1325,
-          "lineBottom": 1539,
-          "top": 1294,
-          "bottom": 1570,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 1872,
-          "lineBottom": 2085,
-          "top": 1841,
-          "bottom": 2116,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 2487,
-          "lineBottom": 2700,
-          "top": 2456,
-          "bottom": 2731,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 3195,
-          "lineBottom": 3409,
-          "top": 3164,
-          "bottom": 3440,
-          "pageIndex": 1
-        }
-      ]
+      "lineTop": 1025,
+      "lineBottom": 1056,
+      "top": 1020,
+      "bottom": 1061,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 7,
-      "pageIndex": 1,
-      "staves": [
-        {
-          "lineTop": 4185,
-          "lineBottom": 4399,
-          "top": 4154,
-          "bottom": 4430,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 4732,
-          "lineBottom": 4945,
-          "top": 4701,
-          "bottom": 4976,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 5331,
-          "lineBottom": 5545,
-          "top": 5300,
-          "bottom": 5576,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 6037,
-          "lineBottom": 6251,
-          "top": 6006,
-          "bottom": 6282,
-          "pageIndex": 1
-        },
-        {
-          "lineTop": 6632,
-          "lineBottom": 6846,
-          "top": 6601,
-          "bottom": 6877,
-          "pageIndex": 1
-        }
-      ]
+      "lineTop": 1119,
+      "lineBottom": 1149,
+      "top": 1114,
+      "bottom": 1154,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 8,
-      "pageIndex": 2,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 1325,
-          "lineBottom": 1539,
-          "top": 1294,
-          "bottom": 1570,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 1900,
-          "lineBottom": 2114,
-          "top": 1869,
-          "bottom": 2145,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 2564,
-          "lineBottom": 2778,
-          "top": 2533,
-          "bottom": 2809,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 3120,
-          "lineBottom": 3334,
-          "top": 3089,
-          "bottom": 3365,
-          "pageIndex": 2
-        }
-      ]
+      "lineTop": 1394,
+      "lineBottom": 1425,
+      "top": 1389,
+      "bottom": 1430,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 9,
-      "pageIndex": 2,
-      "staves": [
-        {
-          "lineTop": 4110,
-          "lineBottom": 4323,
-          "top": 4079,
-          "bottom": 4354,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 4819,
-          "lineBottom": 5032,
-          "top": 4788,
-          "bottom": 5063,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 5527,
-          "lineBottom": 5741,
-          "top": 5496,
-          "bottom": 5772,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 6285,
-          "lineBottom": 6499,
-          "top": 6254,
-          "bottom": 6530,
-          "pageIndex": 2
-        },
-        {
-          "lineTop": 7007,
-          "lineBottom": 7221,
-          "top": 6976,
-          "bottom": 7252,
-          "pageIndex": 2
-        }
-      ]
+      "lineTop": 1579,
+      "lineBottom": 1612,
+      "top": 1574,
+      "bottom": 1617,
+      "pageIndex": 0
     },
     {
-      "systemIndex": 10,
-      "pageIndex": 3,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 1325,
-          "lineBottom": 1539,
-          "top": 1294,
-          "bottom": 1570,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 1890,
-          "lineBottom": 2104,
-          "top": 1859,
-          "bottom": 2135,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 2531,
-          "lineBottom": 2744,
-          "top": 2500,
-          "bottom": 2775,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 3078,
-          "lineBottom": 3291,
-          "top": 3047,
-          "bottom": 3322,
-          "pageIndex": 3
-        }
-      ]
+      "lineTop": 89,
+      "lineBottom": 120,
+      "top": 84,
+      "bottom": 125,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 11,
-      "pageIndex": 3,
-      "staves": [
-        {
-          "lineTop": 4067,
-          "lineBottom": 4281,
-          "top": 4036,
-          "bottom": 4312,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 4827,
-          "lineBottom": 5041,
-          "top": 4796,
-          "bottom": 5072,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 5538,
-          "lineBottom": 5752,
-          "top": 5507,
-          "bottom": 5783,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 6121,
-          "lineBottom": 6334,
-          "top": 6090,
-          "bottom": 6365,
-          "pageIndex": 3
-        },
-        {
-          "lineTop": 6850,
-          "lineBottom": 7064,
-          "top": 6819,
-          "bottom": 7095,
-          "pageIndex": 3
-        }
-      ]
+      "lineTop": 183,
+      "lineBottom": 214,
+      "top": 178,
+      "bottom": 219,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 12,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 794,
-          "lineBottom": 1007,
-          "top": 763,
-          "bottom": 1038,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 270,
+      "lineBottom": 307,
+      "top": 265,
+      "bottom": 312,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 13,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 1341,
-          "lineBottom": 1554,
-          "top": 1310,
-          "bottom": 1585,
-          "pageIndex": 4
-        },
-        {
-          "lineTop": 1703,
-          "lineBottom": 2190,
-          "top": 1631,
-          "bottom": 2262,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 415,
+      "lineBottom": 446,
+      "top": 410,
+      "bottom": 451,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 14,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 2680,
-          "lineBottom": 2893,
-          "top": 2649,
-          "bottom": 2924,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 603,
+      "lineBottom": 634,
+      "top": 598,
+      "bottom": 639,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 15,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 3460,
-          "lineBottom": 3622,
-          "top": 3436,
-          "bottom": 3646,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 742,
+      "lineBottom": 772,
+      "top": 737,
+      "bottom": 777,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 16,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 4450,
-          "lineBottom": 4664,
-          "top": 4419,
-          "bottom": 4695,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 835,
+      "lineBottom": 866,
+      "top": 830,
+      "bottom": 871,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 17,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 5190,
-          "lineBottom": 5404,
-          "top": 5159,
-          "bottom": 5435,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 929,
+      "lineBottom": 960,
+      "top": 924,
+      "bottom": 965,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 18,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 5882,
-          "lineBottom": 6096,
-          "top": 5851,
-          "bottom": 6127,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 1068,
+      "lineBottom": 1099,
+      "top": 1063,
+      "bottom": 1104,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 19,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 6432,
-          "lineBottom": 6645,
-          "top": 6401,
-          "bottom": 6676,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 1162,
+      "lineBottom": 1192,
+      "top": 1157,
+      "bottom": 1197,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 20,
-      "pageIndex": 4,
-      "staves": [
-        {
-          "lineTop": 7025,
-          "lineBottom": 7191,
-          "top": 7001,
-          "bottom": 7215,
-          "pageIndex": 4
-        }
-      ]
+      "lineTop": 1255,
+      "lineBottom": 1286,
+      "top": 1250,
+      "bottom": 1291,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 21,
-      "pageIndex": 5,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 1409,
-          "lineBottom": 1623,
-          "top": 1378,
-          "bottom": 1654,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 2030,
-          "lineBottom": 2244,
-          "top": 1999,
-          "bottom": 2275,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 2892,
-          "lineBottom": 3106,
-          "top": 2861,
-          "bottom": 3137,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 3642,
-          "lineBottom": 3856,
-          "top": 3611,
-          "bottom": 3887,
-          "pageIndex": 5
-        }
-      ]
+      "lineTop": 1394,
+      "lineBottom": 1425,
+      "top": 1389,
+      "bottom": 1430,
+      "pageIndex": 1
     },
     {
-      "systemIndex": 22,
-      "pageIndex": 5,
-      "staves": [
-        {
-          "lineTop": 4632,
-          "lineBottom": 4845,
-          "top": 4601,
-          "bottom": 4876,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 5178,
-          "lineBottom": 5392,
-          "top": 5147,
-          "bottom": 5423,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 5745,
-          "lineBottom": 5958,
-          "top": 5714,
-          "bottom": 5989,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 6398,
-          "lineBottom": 6612,
-          "top": 6367,
-          "bottom": 6643,
-          "pageIndex": 5
-        },
-        {
-          "lineTop": 6945,
-          "lineBottom": 7158,
-          "top": 6914,
-          "bottom": 7189,
-          "pageIndex": 5
-        }
-      ]
-    },
-    {
-      "systemIndex": 23,
-      "pageIndex": 6,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 1325,
-          "lineBottom": 1539,
-          "top": 1295,
-          "bottom": 1569,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 1890,
-          "lineBottom": 2104,
-          "top": 1859,
-          "bottom": 2135,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 2571,
-          "lineBottom": 2785,
-          "top": 2540,
-          "bottom": 2816,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 3137,
-          "lineBottom": 3351,
-          "top": 3106,
-          "bottom": 3382,
-          "pageIndex": 6
-        }
-      ]
-    },
-    {
-      "systemIndex": 24,
-      "pageIndex": 6,
-      "staves": [
-        {
-          "lineTop": 4161,
-          "lineBottom": 4375,
-          "top": 4130,
-          "bottom": 4406,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 4868,
-          "lineBottom": 5082,
-          "top": 4837,
-          "bottom": 5113,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 5576,
-          "lineBottom": 5789,
-          "top": 5545,
-          "bottom": 5820,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 6306,
-          "lineBottom": 6519,
-          "top": 6275,
-          "bottom": 6550,
-          "pageIndex": 6
-        },
-        {
-          "lineTop": 7054,
-          "lineBottom": 7268,
-          "top": 7023,
-          "bottom": 7299,
-          "pageIndex": 6
-        }
-      ]
-    },
-    {
-      "systemIndex": 25,
-      "pageIndex": 7,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 1397,
-          "lineBottom": 1610,
-          "top": 1366,
-          "bottom": 1641,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 2094,
-          "lineBottom": 2307,
-          "top": 2063,
-          "bottom": 2338,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 2884,
-          "lineBottom": 3097,
-          "top": 2853,
-          "bottom": 3128,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 3616,
-          "lineBottom": 3830,
-          "top": 3585,
-          "bottom": 3861,
-          "pageIndex": 7
-        }
-      ]
-    },
-    {
-      "systemIndex": 26,
-      "pageIndex": 7,
-      "staves": [
-        {
-          "lineTop": 4606,
-          "lineBottom": 4820,
-          "top": 4575,
-          "bottom": 4851,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 5315,
-          "lineBottom": 5528,
-          "top": 5284,
-          "bottom": 5559,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 6023,
-          "lineBottom": 6237,
-          "top": 5992,
-          "bottom": 6268,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 6732,
-          "lineBottom": 6945,
-          "top": 6701,
-          "bottom": 6976,
-          "pageIndex": 7
-        },
-        {
-          "lineTop": 7441,
-          "lineBottom": 7654,
-          "top": 7410,
-          "bottom": 7685,
-          "pageIndex": 7
-        }
-      ]
-    },
-    {
-      "systemIndex": 27,
-      "pageIndex": 8,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 1484,
-          "lineBottom": 1697,
-          "top": 1453,
-          "bottom": 1728,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 2198,
-          "lineBottom": 2411,
-          "top": 2167,
-          "bottom": 2442,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 2953,
-          "lineBottom": 3166,
-          "top": 2922,
-          "bottom": 3197,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 3659,
-          "lineBottom": 3872,
-          "top": 3628,
-          "bottom": 3903,
-          "pageIndex": 8
-        }
-      ]
-    },
-    {
-      "systemIndex": 28,
-      "pageIndex": 8,
-      "staves": [
-        {
-          "lineTop": 4611,
-          "lineBottom": 4825,
-          "top": 4580,
-          "bottom": 4856,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 5325,
-          "lineBottom": 5539,
-          "top": 5294,
-          "bottom": 5570,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 6010,
-          "lineBottom": 6224,
-          "top": 5979,
-          "bottom": 6255,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 6740,
-          "lineBottom": 6953,
-          "top": 6709,
-          "bottom": 6984,
-          "pageIndex": 8
-        },
-        {
-          "lineTop": 7539,
-          "lineBottom": 7753,
-          "top": 7508,
-          "bottom": 7784,
-          "pageIndex": 8
-        }
-      ]
-    },
-    {
-      "systemIndex": 29,
-      "pageIndex": 9,
-      "staves": [
-        {
-          "lineTop": 778,
-          "lineBottom": 992,
-          "top": 747,
-          "bottom": 1023,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 1369,
-          "lineBottom": 1583,
-          "top": 1338,
-          "bottom": 1614,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 1916,
-          "lineBottom": 2130,
-          "top": 1885,
-          "bottom": 2161,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 2463,
-          "lineBottom": 2676,
-          "top": 2432,
-          "bottom": 2707,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 3003,
-          "lineBottom": 3173,
-          "top": 2979,
-          "bottom": 3197,
-          "pageIndex": 9
-        }
-      ]
-    },
-    {
-      "systemIndex": 30,
-      "pageIndex": 9,
-      "staves": [
-        {
-          "lineTop": 4001,
-          "lineBottom": 4215,
-          "top": 3970,
-          "bottom": 4246,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 4558,
-          "lineBottom": 4772,
-          "top": 4527,
-          "bottom": 4803,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 5105,
-          "lineBottom": 5318,
-          "top": 5074,
-          "bottom": 5349,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 5702,
-          "lineBottom": 5916,
-          "top": 5671,
-          "bottom": 5947,
-          "pageIndex": 9
-        },
-        {
-          "lineTop": 6319,
-          "lineBottom": 6533,
-          "top": 6288,
-          "bottom": 6564,
-          "pageIndex": 9
-        }
-      ]
-    },
-    {
-      "systemIndex": 31,
-      "pageIndex": 10,
-      "staves": [
-        {
-          "lineTop": 994,
-          "lineBottom": 1207,
-          "top": 963,
-          "bottom": 1238,
-          "pageIndex": 10
-        },
-        {
-          "lineTop": 1802,
-          "lineBottom": 2016,
-          "top": 1771,
-          "bottom": 2047,
-          "pageIndex": 10
-        },
-        {
-          "lineTop": 2604,
-          "lineBottom": 2818,
-          "top": 2573,
-          "bottom": 2849,
-          "pageIndex": 10
-        },
-        {
-          "lineTop": 3454,
-          "lineBottom": 3668,
-          "top": 3423,
-          "bottom": 3699,
-          "pageIndex": 10
-        },
-        {
-          "lineTop": 4303,
-          "lineBottom": 4517,
-          "top": 4272,
-          "bottom": 4548,
-          "pageIndex": 10
-        }
-      ]
+      "lineTop": 1579,
+      "lineBottom": 1612,
+      "top": 1574,
+      "bottom": 1617,
+      "pageIndex": 1
     }
   ]
 }

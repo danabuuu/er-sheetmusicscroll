@@ -3,8 +3,12 @@
  *   npx tsx test-run.ts <path-to-pdf> [staffIndex]
  *
  * Outputs:
- *   out-analysis.json  — detected systems / staves
- *   out-scroll.png     — final stitched scroll image
+ *   out-analysis.json  — all detected staves
+ *   out-scroll.png     — scroll image using every stave at the given staff index
+ *
+ * staffIndex selects which stave within each occurrence of a repeated
+ * instrument (e.g. 0 = top voice, 1 = second voice).  For most single-stave
+ * scores, staffIndex is always 0 and every detected stave is included.
  */
 import { writeFileSync } from 'fs';
 import { analyzeScore, buildScrollImage } from './index.js';
@@ -20,19 +24,18 @@ if (!pdfPath) {
 console.log(`Analyzing: ${pdfPath}`);
 const analysis = await analyzeScore(pdfPath);
 
-console.log(`Found ${analysis.systems.length} systems:`);
-analysis.systems.forEach(sys => {
-  console.log(
-    `  System ${sys.systemIndex} (page ${sys.pageIndex}): ${sys.staves.length} staves — ` +
-      sys.staves.map(s => `[${s.top}–${s.bottom}]`).join(', ')
-  );
+console.log(`Found ${analysis.staves.length} staves across ${analysis.pageCount} page(s):`);
+analysis.staves.forEach((stave, idx) => {
+  console.log(`  Stave ${idx} (page ${stave.pageIndex}): [${stave.top}–${stave.bottom}]`);
 });
 
 writeFileSync('out-analysis.json', JSON.stringify(analysis, null, 2));
 console.log('Wrote out-analysis.json');
 
-console.log(`\nExtracting staff index ${staffIndex} from each system…`);
-const scrollImage = await buildScrollImage(pdfPath, { mode: 'global', staffIndex });
+// For the scroll test: pick every stave (they're already in order)
+const selectedStaves = analysis.staves;
+console.log(`\nBuilding scroll from ${selectedStaves.length} stave(s)…`);
+const scrollImage = await buildScrollImage(pdfPath, selectedStaves);
 writeFileSync('out-scroll.png', scrollImage);
 console.log('Wrote out-scroll.png');
 console.log('Done.');
