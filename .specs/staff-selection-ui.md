@@ -5,6 +5,7 @@
 - The user scrolls through the score system by system and clicks the staff they want for each system individually — there is no global default
 - Clicked staves highlight in yellow; unselected staves are outlined but dim
 - A progress indicator shows how many systems have been selected out of the total (e.g. "12 / 18 systems selected")
+- **Manual staff grab**: automated detection does not always find every staff. If a system is missing or a staff was not outlined, the user can click anywhere on the page image outside a detected bounding box; the app infers the staff at that vertical position (using the same horizontal-projection detection on a narrow horizontal slice around the click point) and adds it as a selection for the nearest system.
 - **Multiple voice parts are built one at a time in a serial workflow.** The user completes a full selection pass for one part, builds its scroll image, confirms it looks correct, and then moves on to the next part. There is no side-by-side multi-part editing panel.
 - Each part has a short user-editable label. Common values are `S`, `A`, `T`, `B` (and split-section variants `S1`, `S2`, `A1`, `A2`, `T1`, `T2`, `B1`, `B2`). The label field is pre-filled with the next default in `S → A → T → B` order; beyond four it defaults to "Part N".
 - After a part's image is built and confirmed, the user can either "Save Part & Add Another" (clears all selections and starts a fresh pass) or "Save Part & Finish" to proceed to the song metadata form.
@@ -47,6 +48,7 @@ Upload PDF
 - [ ] Scaffold the admin Next.js app (`admin/`) — see app-overview.md
 
 ### API routes
+- [ ] `POST /api/detect-staff` — accept `{ pdfJobId, pageIndex, clickY: number }`, run staff detection on a horizontal slice around `clickY` on the given page, return a `StaffBox` (or error if no staff found near that point)
 - [ ] `POST /api/analyze` — accept a PDF file upload, run `analyzeScore()` from `lib/staff-extraction`, return `ScoreAnalysis` JSON + per-page image URLs
 - [ ] `GET /api/pages/[jobId]/[pageIndex]` — serve a rendered page image (greyscale PNG) for display in the UI
 - [ ] `POST /api/build` — accept `{ pdfJobId, label: string, selection: StaffSelection, paddingPx?: number }`, call `buildScrollImage()`, upload the PNG, return `{ label: string, imageUrl: string }`
@@ -56,6 +58,7 @@ Upload PDF
 - [ ] `/upload` page: PDF file picker → calls `/api/analyze` on submit → redirects to `/select/[jobId]`
 - [ ] `/select/[jobId]` page: renders each page image with an SVG overlay of staff bounding boxes, numbered per system; shows label field, padding control, and current selection state
 - [ ] Clicking a staff box in any system selects it for that system (highlights yellow); clicking again deselects it
+- [ ] Clicking outside any detected bounding box calls `/api/detect-staff` with the click's Y coordinate; on success, the returned `StaffBox` is added as a custom selection for the nearest system and rendered with a distinct outline (e.g. dashed yellow) to indicate it was manually grabbed rather than auto-detected
 - [ ] Progress indicator showing "N / total systems selected"
 - [ ] "Build Scroll Image" button is disabled until all systems have a selection
 - [ ] Vertical padding control (slider or number input) applied per-part at build time

@@ -12,6 +12,7 @@
 - [x] Scaffold standalone TypeScript module at `lib/staff-extraction/` with `sharp` (image processing) and `pdfjs-dist` (PDF rendering)
 - [x] `renderPageToImage(pdfPath, pageIndex)` — rasterise one PDF page to a greyscale buffer at 150 DPI
 - [x] `detectStaves(imageBuffer)` — horizontal projection profile: sum darkness per row, find 5-line clusters → returns array of `StaffBox { top, bottom, pageIndex }`
+- [ ] `detectStaffNear(imageBuffer, clickY: number)` — runs the same projection on a narrow horizontal band around `clickY`; returns the nearest `StaffBox` found within a tolerance, or `null` if none detected (used for manual grab when auto-detection missed a staff)
 - [x] `detectSystems(staves)` — group nearby staves into systems → returns `System { staves: StaffBox[], systemIndex, pageIndex }`
 - [x] `analyzeScore(pdfPath)` — runs detection across all pages → returns `ScoreAnalysis { systems: System[] }`
 - [x] Define `StaffSelection` type: `Record<systemId, staffIndex>` — an explicit staff index for every system (no global/simple mode)
