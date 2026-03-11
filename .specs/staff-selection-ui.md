@@ -2,9 +2,9 @@
 
 ## Requirements
 - After uploading a PDF, user sees each page rendered with numbered bounding boxes overlaid on every detected staff
-- User clicks one staff in any system to set it as the global default — all matching staff indices highlight across all pages
-- User can click a different staff in any individual system to override just that system (shown in a distinct colour)
-- A summary shows the current selection (e.g. "Staff 3 everywhere, except system 11: Staff 1")
+- The user scrolls through the score system by system and clicks the staff they want for each system individually — there is no global default
+- Clicked staves highlight in yellow; unselected staves are outlined but dim
+- A progress indicator shows how many systems have been selected out of the total (e.g. "12 / 18 systems selected")
 - **Multiple voice parts are built one at a time in a serial workflow.** The user completes a full selection pass for one part, builds its scroll image, confirms it looks correct, and then moves on to the next part. There is no side-by-side multi-part editing panel.
 - Each part has a short user-editable label. Common values are `S`, `A`, `T`, `B` (and split-section variants `S1`, `S2`, `A1`, `A2`, `T1`, `T2`, `B1`, `B2`). The label field is pre-filled with the next default in `S → A → T → B` order; beyond four it defaults to "Part N".
 - After a part's image is built and confirmed, the user can either "Save Part & Add Another" (clears all selections and starts a fresh pass) or "Save Part & Finish" to proceed to the song metadata form.
@@ -55,9 +55,9 @@ Upload PDF
 ### Frontend
 - [ ] `/upload` page: PDF file picker → calls `/api/analyze` on submit → redirects to `/select/[jobId]`
 - [ ] `/select/[jobId]` page: renders each page image with an SVG overlay of staff bounding boxes, numbered per system; shows label field, padding control, and current selection state
-- [ ] Global pick: clicking a staff box sets it as global default and highlights all matching indices in yellow
-- [ ] Per-system override: clicking a different box in a system marks it orange; double-click resets to global
-- [ ] Selection summary panel listing the global default and any per-system overrides
+- [ ] Clicking a staff box in any system selects it for that system (highlights yellow); clicking again deselects it
+- [ ] Progress indicator showing "N / total systems selected"
+- [ ] "Build Scroll Image" button is disabled until all systems have a selection
 - [ ] Vertical padding control (slider or number input) applied per-part at build time
 - [ ] "Build Scroll Image" button → calls `/api/build` → displays result PNG inline for confirmation
 - [ ] "Save Part & Add Another" button → appends completed part to in-progress list, clears selections, advances label default, resets padding to default
