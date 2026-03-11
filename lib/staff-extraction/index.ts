@@ -3,8 +3,8 @@ import mupdf from 'mupdf';
 import sharp from 'sharp';
 import type { StaffBox, ScoreAnalysis, StaffSelection } from './types.js';
 
-// PDF points are 72 DPI; 150 DPI gives enough resolution for reliable line detection.
-const RENDER_DPI = 150;
+// PDF points are 72 DPI; 300 DPI gives 2× source resolution for sharper downscaling.
+const RENDER_DPI = 300;
 const SCALE = RENDER_DPI / 72;
 
 // ─── Task 2: renderPageToImage ────────────────────────────────────────────────
@@ -348,6 +348,60 @@ export async function stitchStrips(strips: Buffer[]): Promise<Buffer> {
     .toBuffer();
 }
 
+/**
+ * Pairs up strips vertically (top row + bottom row) then stitches the pairs
+ * left-to-right. Each pair has the same width (the wider of the two, padded
+ * with white) and double the height.
+ *
+ * Used when rows=2 in buildScrollImage to show 2 staves at once on the glasses.
+ * If there's an odd number of strips, the last pair has a blank bottom row.
+ */
+async function stitchStrips2Row(strips: Buffer[]): Promise<Buffer> {
+  if (strips.length === 0) throw new Error('No strips to stitch');
+
+  // Layout: each column is 400×100px (= two containers wide × full container tall).
+  //   - top 50px: stave N scaled to fit 400×50 (contain, letterboxed)
+  //   - bottom 50px: stave N+1 scaled to fit 400×50
+  // LEFT container (xOffset..xOffset+200) sees the left halves of both staves.
+  // RIGHT container (xOffset+200..xOffset+400) sees the right halves.
+  // Together they show both complete staves stacked vertically.
+  // xOffset advances 400px per tick → one complete stave pair per snap.
+  const PAIR_W = 576;
+  const halfH  = Math.round(TARGET_HEIGHT / 2); // 50px
+
+  // Scale each strip to fit within 400×50, preserving aspect ratio
+  const resized = await Promise.all(
+    strips.map(s =>
+      sharp(s)
+        .resize({ width: PAIR_W, height: halfH, fit: 'contain', background: '#FFFFFF' })
+        .png()
+        .toBuffer(),
+    ),
+  );
+
+  // Stack pairs into 400×100 columns, then stitch columns left-to-right
+  const columns: Buffer[] = [];
+  for (let i = 0; i < resized.length; i += 2) {
+    const top    = resized[i];
+    const bottom = resized[i + 1] ?? null;
+
+    const composites: sharp.OverlayOptions[] = [{ input: top, left: 0, top: 0 }];
+    if (bottom) composites.push({ input: bottom, left: 0, top: halfH });
+
+    columns.push(
+      await sharp({
+        create: { width: PAIR_W, height: TARGET_HEIGHT, channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 } },
+      })
+        .composite(composites)
+        .png()
+        .toBuffer(),
+    );
+  }
+
+  return stitchStrips(columns);
+}
+
 // ─── Task 9: buildScrollImage ─────────────────────────────────────────────────
 
 /**
@@ -367,13 +421,18 @@ export async function stitchStrips(strips: Buffer[]): Promise<Buffer> {
  * These constants give a total strip height of ~2.45× the staff height,
  * which is consistent regardless of which system the staff came from.
  */
-const PAD_ABOVE = 0.15;
-const PAD_BELOW = 1.30;
+export const DEFAULT_PAD_ABOVE = 0.10;
+export const DEFAULT_PAD_BELOW = 0.90;
 
-function expandedCropBox(staffBox: StaffBox, imageHeight: number): StaffBox {
+function expandedCropBox(
+  staffBox: StaffBox,
+  imageHeight: number,
+  padAbove = DEFAULT_PAD_ABOVE,
+  padBelow = DEFAULT_PAD_BELOW,
+): StaffBox {
   const staffHeight = staffBox.bottom - staffBox.top;
-  const topPad    = Math.round(staffHeight * PAD_ABOVE);
-  const bottomPad = Math.round(staffHeight * PAD_BELOW);
+  const topPad    = Math.round(staffHeight * padAbove);
+  const bottomPad = Math.round(staffHeight * padBelow);
 
   return {
     pageIndex:   staffBox.pageIndex,
@@ -386,12 +445,17 @@ function expandedCropBox(staffBox: StaffBox, imageHeight: number): StaffBox {
 
 /**
  * Builds a horizontal scroll PNG from an explicit ordered list of staves.
- * Each stave is expanded to a consistent proportional crop and stitched
- * left-to-right.
+ *
+ * @param rows  1 = single row (default, original behaviour)
+ *              2 = pairs of staves stacked vertically; shows 2 lines at once
+ *              on the glasses but produces a PNG half as wide.
  */
 export async function buildScrollImage(
   pdfPath: string,
   selectedStaves: StaffBox[],
+  rows: 1 | 2 = 1,
+  padAbove = DEFAULT_PAD_ABOVE,
+  padBelow = DEFAULT_PAD_BELOW,
 ): Promise<Buffer> {
   if (selectedStaves.length === 0) throw new Error('No staves selected.');
 
@@ -416,12 +480,12 @@ export async function buildScrollImage(
   const strips: Buffer[] = [];
   for (const staffBox of selectedStaves) {
     const imageHeight = await getPageHeight(staffBox.pageIndex);
-    const cropBox = expandedCropBox(staffBox, imageHeight);
+    const cropBox = expandedCropBox(staffBox, imageHeight, padAbove, padBelow);
     const strip = await extractStrip(getPageImage(staffBox.pageIndex), cropBox);
     strips.push(strip);
   }
 
-  return stitchStrips(strips);
+  return rows === 2 ? stitchStrips2Row(strips) : stitchStrips(strips);
 }
 
 export type { StaffBox, ScoreAnalysis, StaffSelection };

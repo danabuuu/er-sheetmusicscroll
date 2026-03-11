@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { existsSync } from 'fs';
 import type { StaffBox } from '@lib/staff-extraction/types';
-import { buildScrollImage } from '@lib/staff-extraction';
+import { buildScrollImage, DEFAULT_PAD_ABOVE, DEFAULT_PAD_BELOW } from '@lib/staff-extraction';
 import { pdfPath, isValidJobId } from '@/lib/jobs';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -13,9 +13,13 @@ export async function POST(request: NextRequest) {
     staves?: unknown;
     songId?: unknown;
     tempo?: unknown;
+    beatsInScroll?: unknown;
+    rows?: unknown;
+    padAbove?: unknown;
+    padBelow?: unknown;
   };
 
-  const { jobId, staves, songId, tempo } = body;
+  const { jobId, staves, songId, tempo, beatsInScroll, rows, padAbove, padBelow } = body;
 
   if (typeof jobId !== 'string' || !isValidJobId(jobId)) {
     return NextResponse.json({ error: 'Invalid or missing jobId' }, { status: 400 });
@@ -30,7 +34,10 @@ export async function POST(request: NextRequest) {
   }
 
   const selectedStaves = staves as StaffBox[];
-  const png = await buildScrollImage(pdf, selectedStaves);
+  const rowCount: 1 | 2 = rows === 2 ? 2 : 1;
+  const padA = typeof padAbove === 'number' ? padAbove : DEFAULT_PAD_ABOVE;
+  const padB = typeof padBelow === 'number' ? padBelow : DEFAULT_PAD_BELOW;
+  const png = await buildScrollImage(pdf, selectedStaves, rowCount, padA, padB);
 
   // If a song ID was provided, upload the PNG to Supabase Storage and save the URL.
   let scrollUrl: string | null = null;
@@ -51,6 +58,8 @@ export async function POST(request: NextRequest) {
       const updates: Record<string, unknown> = { scroll_url: scrollUrl };
       const tempoNum = typeof tempo === 'number' ? tempo : (typeof tempo === 'string' ? parseInt(tempo, 10) : NaN);
       if (!isNaN(tempoNum) && tempoNum > 0) updates.tempo = tempoNum;
+      const beatsNum = typeof beatsInScroll === 'number' ? beatsInScroll : (typeof beatsInScroll === 'string' ? parseInt(beatsInScroll, 10) : NaN);
+      if (!isNaN(beatsNum) && beatsNum > 0) updates.beats_in_scroll = beatsNum;
 
       const { error: dbError } = await supabaseAdmin.from('songs').update(updates).eq('id', songId);
       if (dbError) console.error('DB update failed:', dbError.message);

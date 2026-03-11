@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Vite cache
+**/.vite/
+
+# Test/scratch PDFs in lib
+lib/staff-extraction/*.pdf
+
+# macOS
+.DS_Store
+
+# Env files
+.env*
+!.env.example

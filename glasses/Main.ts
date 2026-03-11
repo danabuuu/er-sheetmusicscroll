@@ -5,8 +5,10 @@
  * glasses via the Even Hub SDK.
  *
  * Layout (576×288 SDK coordinates):
- *   - Image container  [200×100] at (0, 94)  — the scroll window
- *   - List container   [576×60]  at (0, 200) — playback controls
+ *   - List container    [576×160] at (0, 0)    — playback controls
+ *   - Image container L [192×100] at (0, 188)  — left third of the scroll window
+ *   - Image container M [192×100] at (192, 188) — centre third
+ *   - Image container R [192×100] at (384, 188) — right third
  *
  * Playback flow:
  *   1. Poll GET /api/now-playing for the current song
@@ -30,23 +32,27 @@ import {
 const ADMIN_URL = (import.meta.env.VITE_ADMIN_URL as string) ?? 'http://localhost:3000';
 
 /** Width of each scroll frame sent to the glasses. Hard max is 200px. */
-const FRAME_W = 200;
-/** Height of the scroll strip. Hard max is 100px. */
+const FRAME_W = 192;
+/** Height of the scroll strip. SDK max is 100px. */
 const FRAME_H = 100;
+/** Source pixels each container samples — 1:1 with display pixels. */
+const SOURCE_SLICE_W = FRAME_W;
 
-const BPM_STEP = 5;
+const BPM_STEP = 1;
 const BPM_MIN  = 20;
 const BPM_MAX  = 300;
 
-/** Pixels scrolled per beat. One beat = one FRAME_W advance. */
-const PIXELS_PER_BEAT = FRAME_W;
+/** Source pixels advanced per beat. One full screen = three containers = 3×FRAME_W. */
+const PIXELS_PER_BEAT = FRAME_W * 3;
 
 /** Poll interval (ms) when idle / waiting for a song. */
 const POLL_INTERVAL_MS = 5000;
 
 // Container IDs
-const ID_SCROLL   = 1;
-const ID_CONTROLS = 2;
+const ID_SCROLL_LEFT  = 1;
+const ID_SCROLL_MID   = 3;
+const ID_SCROLL_RIGHT = 4;
+const ID_CONTROLS     = 2;
 
 // Control list items (order = index used in listEvent)
 const CONTROLS = ['▶ Play', '⏸ Pause', '+ BPM', '- BPM'];
@@ -59,6 +65,7 @@ interface Song {
   artist: string | null;
   tempo: number | null;
   scroll_url: string | null;
+  beats_in_scroll: number | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -94,7 +101,8 @@ async function fetchScrollPixels(url: string): Promise<{
   height: number;
 } | null> {
   try {
-    const res = await fetch(url);
+    const bustUrl = `${url}?t=${Date.now()}`;
+    const res = await fetch(bustUrl);
     if (!res.ok) return null;
     const blob = await res.blob();
     const bitmap = await createImageBitmap(blob);
@@ -110,36 +118,45 @@ async function fetchScrollPixels(url: string): Promise<{
 }
 
 /**
- * Extracts a 200×100 RGBA slice starting at xOffset from the full scroll strip,
- * resampled to fit FRAME_W × FRAME_H.
- * Returns a number[] (List<int>) as expected by updateImageRawData.
+ * Extracts a SOURCE_SLICE_W-wide section from the scroll strip at xOffset,
+ * resamples it down to FRAME_W×FRAME_H, encodes as PNG, and returns bytes as number[].
  */
-function extractSlice(
+async function extractSlice(
   pixels: Uint8ClampedArray,
   srcW: number,
   srcH: number,
   xOffset: number,
-): number[] {
-  // Source rect: crop a FRAME_W-wide, full-height strip at xOffset,
-  // then scale it down to FRAME_W × FRAME_H.
+): Promise<number[]> {
   const srcX = Math.min(xOffset, srcW - 1);
-  const srcSliceW = Math.min(FRAME_W, srcW - srcX);
+  const srcSliceW = Math.min(SOURCE_SLICE_W, srcW - srcX);
 
-  // Use an OffscreenCanvas to resample
+  // Copy the source strip into a canvas
   const srcCanvas = new OffscreenCanvas(srcSliceW, srcH);
   const srcCtx = srcCanvas.getContext('2d')!;
   const srcImageData = new ImageData(new Uint8ClampedArray(pixels.buffer as ArrayBuffer), srcW, srcH);
   srcCtx.putImageData(srcImageData, -srcX, 0);
 
+  // Resample to FRAME_W × FRAME_H
   const dstCanvas = new OffscreenCanvas(FRAME_W, FRAME_H);
   const dstCtx = dstCanvas.getContext('2d')!;
-  // Fill with white for any area beyond the scroll strip
-  dstCtx.fillStyle = '#FFFFFF';
+  dstCtx.fillStyle = '#000000';
   dstCtx.fillRect(0, 0, FRAME_W, FRAME_H);
   dstCtx.drawImage(srcCanvas, 0, 0, srcSliceW, srcH, 0, 0, FRAME_W, FRAME_H);
 
-  const out = dstCtx.getImageData(0, 0, FRAME_W, FRAME_H).data;
-  return Array.from(out);
+  // Invert colors so the dark glasses display shows white notes on black
+  const frameData = dstCtx.getImageData(0, 0, FRAME_W, FRAME_H);
+  const d = frameData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]   = 255 - d[i];
+    d[i+1] = 255 - d[i+1];
+    d[i+2] = 255 - d[i+2];
+  }
+  dstCtx.putImageData(frameData, 0, 0);
+
+  // Encode as PNG
+  const blob = await dstCanvas.convertToBlob({ type: 'image/png' });
+  const arrayBuffer = await blob.arrayBuffer();
+  return Array.from(new Uint8Array(arrayBuffer));
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -147,40 +164,12 @@ function extractSlice(
 async function main(): Promise<void> {
   setStatus('Connecting to glasses…');
   const bridge = await waitForEvenAppBridge();
-  setStatus('Connected. Loading song…');
+  setStatus('Bridge ready. Waiting for glasses connection…');
 
-  // ── Build the initial page layout ─────────────────────────────────────────
-  const imageContainer = new ImageContainerProperty({
-    containerID: ID_SCROLL,
-    containerName: 'scroll',
-    xPosition: 0,
-    yPosition: 94,   // vertically centred in the 288px tall display
-    width: FRAME_W,
-    height: FRAME_H,
+  bridge.onDeviceStatusChanged((status) => {
+    console.log('[scroll] device status:', JSON.stringify(status));
+    setStatus(`Glasses: ${JSON.stringify(status)}`);
   });
-
-  const listContainer = new ListContainerProperty({
-    containerID: ID_CONTROLS,
-    containerName: 'controls',
-    xPosition: 0,
-    yPosition: 200,
-    width: 576,
-    height: 60,
-    isEventCapture: 1,
-    itemContainer: new ListItemContainerProperty({
-      itemCount: CONTROLS.length,
-      itemName: CONTROLS,
-      isItemSelectBorderEn: 1,
-    }),
-  });
-
-  const startupPage = new CreateStartUpPageContainer({
-    containerTotalNum: 2,
-    imageObject: [imageContainer],
-    listObject: [listContainer],
-  });
-
-  await bridge.createStartUpPageContainer(startupPage);
 
   // ── Playback state ────────────────────────────────────────────────────────
   let playing     = false;
@@ -191,6 +180,66 @@ async function main(): Promise<void> {
   let scrollPixels: Uint8ClampedArray | null = null;
   let scrollW     = 0;
   let scrollH     = 0;
+
+  // ── Build the initial page layout ─────────────────────────────────────────
+  // Three 192px image containers side-by-side = 576px = full display width
+  const imageContainerLeft = new ImageContainerProperty({
+    containerID: ID_SCROLL_LEFT,
+    containerName: 'scroll-left',
+    xPosition: 0,
+    yPosition: 188,  // flush to bottom: 188 + 100 = 288
+    width: FRAME_W,
+    height: FRAME_H,
+  });
+
+  const imageContainerMid = new ImageContainerProperty({
+    containerID: ID_SCROLL_MID,
+    containerName: 'scroll-mid',
+    xPosition: 192,
+    yPosition: 188,
+    width: FRAME_W,
+    height: FRAME_H,
+  });
+
+  const imageContainerRight = new ImageContainerProperty({
+    containerID: ID_SCROLL_RIGHT,
+    containerName: 'scroll-right',
+    xPosition: 384,
+    yPosition: 188,
+    width: FRAME_W,
+    height: FRAME_H,
+  });
+
+  const listContainer = new ListContainerProperty({
+    containerID: ID_CONTROLS,
+    containerName: 'controls',
+    xPosition: 0,
+    yPosition: 0,  // top of display
+    width: 576,
+    height: 160,
+    isEventCapture: 1,
+    itemContainer: new ListItemContainerProperty({
+      itemCount: CONTROLS.length,
+      itemName: CONTROLS,
+      isItemSelectBorderEn: 1,
+    }),
+  });
+
+  const startupPage = new CreateStartUpPageContainer({
+    containerTotalNum: 4,
+    imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
+    listObject: [listContainer],
+    textObject: [],
+  });
+
+  const startupResult = await bridge.createStartUpPageContainer(startupPage);
+  console.log('[scroll] createStartUpPageContainer result:', startupResult);
+  // 0=success, 1=invalid, 2=oversize, 3=outOfMemory
+  if (startupResult !== 0) {
+    setStatus(`Layout error (code ${startupResult}) — check container counts/sizes`);
+    return;
+  }
+  setStatus('Connected. Loading song…');
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
   bridge.onEvenHubEvent((event) => {
@@ -219,19 +268,41 @@ async function main(): Promise<void> {
   // ── Tick: advance one frame ────────────────────────────────────────────────
   async function sendFrame(): Promise<void> {
     if (!scrollPixels) return;
-    const slice = extractSlice(scrollPixels, scrollW, scrollH, xOffset);
-    const update = new ImageRawDataUpdate({
-      containerID: ID_SCROLL,
-      containerName: 'scroll',
-      imageData: slice,
-    });
-    await bridge.updateImageRawData(update);
-    xOffset += PIXELS_PER_BEAT;
+    // Extract all three slices in parallel; each is SOURCE_SLICE_W (192px) of source → 192px display
+    const [sliceL, sliceM, sliceR] = await Promise.all([
+      extractSlice(scrollPixels, scrollW, scrollH, xOffset),
+      extractSlice(scrollPixels, scrollW, scrollH, xOffset + SOURCE_SLICE_W),
+      extractSlice(scrollPixels, scrollW, scrollH, xOffset + SOURCE_SLICE_W * 2),
+    ]);
+    await Promise.all([
+      bridge.updateImageRawData(new ImageRawDataUpdate({
+        containerID: ID_SCROLL_LEFT,
+        containerName: 'scroll-left',
+        imageData: sliceL,
+      })),
+      bridge.updateImageRawData(new ImageRawDataUpdate({
+        containerID: ID_SCROLL_MID,
+        containerName: 'scroll-mid',
+        imageData: sliceM,
+      })),
+      bridge.updateImageRawData(new ImageRawDataUpdate({
+        containerID: ID_SCROLL_RIGHT,
+        containerName: 'scroll-right',
+        imageData: sliceR,
+      })),
+    ]);
   }
 
   function scheduleTick(): void {
     if (!playing) return;
-    const intervalMs = (60 / bpm) * 1000;
+    // How many musical beats does one full screen (PIXELS_PER_BEAT source px) span?
+    // pixelsPerBeat = scroll_width / total_beats — derived from stored beats_in_scroll.
+    // Interval = (beats per screen) × (ms per beat).
+    const pixelsPerBeat = (currentSong?.beats_in_scroll && scrollW)
+      ? scrollW / currentSong.beats_in_scroll
+      : PIXELS_PER_BEAT;
+    const beatsPerScreen = PIXELS_PER_BEAT / pixelsPerBeat;
+    const intervalMs = beatsPerScreen * (60 / bpm) * 1000;
     tickTimer = setTimeout(async () => {
       if (!playing) return;
 
@@ -244,6 +315,7 @@ async function main(): Promise<void> {
       }
 
       await sendFrame();
+      xOffset += PIXELS_PER_BEAT;  // advance one full screen per snap
       scheduleTick();   // schedule next tick
     }, intervalMs);
   }
@@ -285,8 +357,10 @@ async function main(): Promise<void> {
     }
 
     bpm = song.tempo ?? bpm;
-    setStatus(`${song.title}${song.artist ? ` · ${song.artist}` : ''} — ${bpm} BPM`);
-
+    const beatsInfo = song.beats_in_scroll
+      ? `${song.beats_in_scroll}b / ${scrollW}px = ${(scrollW / song.beats_in_scroll).toFixed(1)}px/beat`
+      : 'no beats_in_scroll';
+    setStatus(`${song.title} — ${bpm} BPM — ${beatsInfo}`);
     // Send the first frame so something visible appears immediately
     await sendFrame();
 

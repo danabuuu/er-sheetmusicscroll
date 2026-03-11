@@ -13,7 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('now_playing')
-    .select('song_id, songs(id, title, artist, tempo, scroll_url)')
+    .select('song_id, songs(id, title, artist, tempo, scroll_url, beats_in_scroll)')
     .limit(1)
     .maybeSingle();
 

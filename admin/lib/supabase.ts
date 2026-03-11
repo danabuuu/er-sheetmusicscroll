@@ -16,6 +16,7 @@ export interface Song {
   artist: string | null;
   tempo: number | null;
   scroll_url: string | null;
+  beats_in_scroll: number | null;
 }
 
 export interface NowPlaying {

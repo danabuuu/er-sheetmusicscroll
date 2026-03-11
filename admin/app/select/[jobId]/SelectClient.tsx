@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ScoreAnalysis, StaffBox } from '@lib/staff-extraction/types';
+
+const DEFAULT_PAD_ABOVE = 0.10;
+const DEFAULT_PAD_BELOW = 0.90;
 import type { Song } from '@/lib/supabase';
 
 interface SelectionEntry {
@@ -37,6 +40,11 @@ export default function SelectClient({ jobId, analysis }: Props) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedSongId, setSelectedSongId] = useState<number | null>(null);
   const [tempo, setTempo] = useState<string>('');
+  const [measures, setMeasures] = useState<string>('');
+  const [beatsPerMeasure, setBeatsPerMeasure] = useState<string>('4');
+  const [rows, setRows] = useState<1 | 2>(1);
+  const [padAbove, setPadAbove] = useState<number>(DEFAULT_PAD_ABOVE);
+  const [padBelow, setPadBelow] = useState<number>(DEFAULT_PAD_BELOW);
 
   useEffect(() => {
     fetch('/api/songs').then(r => r.json()).then(setSongs).catch(() => {});
@@ -135,6 +143,9 @@ export default function SelectClient({ jobId, analysis }: Props) {
     setSaved(false);
     try {
       const tempoNum = tempo.trim() !== '' ? parseInt(tempo, 10) : undefined;
+      const measureNum = measures.trim() !== '' ? parseInt(measures, 10) : undefined;
+      const bpmNum = beatsPerMeasure.trim() !== '' ? parseInt(beatsPerMeasure, 10) : 4;
+      const beatsInScroll = measureNum && bpmNum > 0 ? measureNum * bpmNum : undefined;
       const res = await fetch('/api/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,6 +154,10 @@ export default function SelectClient({ jobId, analysis }: Props) {
           staves: selection.map(e => e.stave),
           ...(selectedSongId !== null ? { songId: selectedSongId } : {}),
           ...(tempoNum && tempoNum > 0 ? { tempo: tempoNum } : {}),
+          ...(beatsInScroll && beatsInScroll > 0 ? { beatsInScroll } : {}),
+          rows,
+          padAbove,
+          padBelow,
         }),
       });
       if (!res.ok) {
@@ -216,6 +231,8 @@ export default function SelectClient({ jobId, analysis }: Props) {
               onToggle={toggleAutoStave}
               onRemoveManual={removeFromSelection}
               onPageClick={handlePageClick}
+              padAbove={padAbove}
+              padBelow={padBelow}
             />
           ))}
         </div>
@@ -258,9 +275,79 @@ export default function SelectClient({ jobId, analysis }: Props) {
                 className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
               />
             </div>
-          </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 shrink-0">Bars</label>
+              <input
+                type="number"
+                min={1}
+                value={measures}
+                onChange={e => setMeasures(e.target.value)}
+                placeholder="e.g. 32"
+                className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 shrink-0 whitespace-nowrap">Beats/bar</label>
+              <input
+                type="number"
+                min={1}
+                max={16}
+                value={beatsPerMeasure}
+                onChange={e => setBeatsPerMeasure(e.target.value)}
+                className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              />
+            </div>
+            {measures && beatsPerMeasure && (
+              <p className="text-xs text-gray-400">
+                = {parseInt(measures, 10) * parseInt(beatsPerMeasure, 10)} beats total
+              </p>
+            )}
 
-          {/* Scroll order list — scrollable */}
+            {/* Layout: rows toggle */}
+            <div className="flex items-center gap-2 pt-1">
+              <label className="text-xs text-gray-400 shrink-0 whitespace-nowrap">Layout</label>
+              <div className="flex rounded border border-gray-200 overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRows(1)}
+                  className={`px-3 py-1 ${
+                    rows === 1 ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  1 row
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRows(2)}
+                  className={`px-3 py-1 border-l border-gray-200 ${
+                    rows === 2 ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  2 rows
+                </button>
+              </div>
+            </div>
+
+            {/* Padding controls */}
+            <div className="flex items-center gap-2 pt-1">
+              <label className="text-xs text-gray-400 shrink-0 whitespace-nowrap">Pad above</label>
+              <input
+                type="number" min={0} max={2} step={0.05}
+                value={padAbove}
+                onChange={e => setPadAbove(parseFloat(e.target.value))}
+                className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 shrink-0 whitespace-nowrap">Pad below</label>
+              <input
+                type="number" min={0} max={3} step={0.05}
+                value={padBelow}
+                onChange={e => setPadBelow(parseFloat(e.target.value))}
+                className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              />
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
               Scroll order
@@ -348,11 +435,13 @@ interface PageViewProps {
   onToggle: (staveIdx: number) => void;
   onRemoveManual: (key: string) => void;
   onPageClick: (pageIndex: number, naturalY: number, naturalH: number) => void;
+  padAbove: number;
+  padBelow: number;
 }
 
 function PageView({
   jobId, pageIndex, staveIndices, staves, selectionPos, manualEntries,
-  detecting, onToggle, onRemoveManual, onPageClick,
+  detecting, onToggle, onRemoveManual, onPageClick, padAbove, padBelow,
 }: PageViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
@@ -410,6 +499,11 @@ function PageView({
               const pos    = selectionPos.get(key);
               const selected = pos !== undefined;
 
+              // Padded capture extent (shown when selected)
+              const staffH = stave.bottom - stave.top;
+              const padTop    = Math.max(0, stave.top - Math.round(staffH * padAbove)) * scale;
+              const padBottom = Math.min(dims!.h - 1, stave.bottom + Math.round(staffH * padBelow)) * scale;
+
               return (
                 <g
                   key={staveIdx}
@@ -422,6 +516,15 @@ function PageView({
                     stroke={selected ? '#4f46e5' : '#9ca3af'}
                     strokeWidth={selected ? 2 : 1}
                   />
+                  {selected && (
+                    <rect
+                      x={0} y={padTop} width={renderW} height={padBottom - padTop}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth={1.5}
+                      strokeDasharray="5 3"
+                    />
+                  )}
                   {selected && (
                     <text x={8} y={top + 14} fontSize={13} fontWeight="bold" fontFamily="monospace" fill="#4f46e5">
                       {pos}

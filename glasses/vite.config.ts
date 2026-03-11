@@ -3,8 +3,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: '.',
   server: {
-    // Vite will start on the host/port you pass via CLI:
-    //   vite -i 192.168.x.x -p 5173
+    host: '0.0.0.0',  // listen on all interfaces so the simulator can reach it
+    port: 5173,
     strictPort: true,
   },
   build: {
