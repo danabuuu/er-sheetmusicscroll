@@ -3,7 +3,7 @@
 ## Requirements
 - User can upload a PDF of sheet music to a web app
 - User can isolate a specific staff/voice line (e.g. Tenor) from the PDF automatically, with the ability to manually override the selection
-- User can attach metadata to a song: title and playback tempo (BPM)
+- User can attach metadata to a song: title, optional artist, and playback tempo (BPM)
 - User can rename or delete songs in their library
 - User can create a setlist by selecting songs and ordering them
 - User can choose a song or setlist to play back
@@ -12,21 +12,36 @@
 
 ## Architecture Notes
 
-### Two-App Structure
-This project is split into two separate apps that share a database:
+### Three-Part Architecture
 
-| App | Tech | Purpose |
-|-----|------|---------|
-| **Admin app** | Next.js + TypeScript | PDF upload, staff isolation, library management, setlist builder |
-| **Glasses app** | Vite + TypeScript (Even Hub) | Playback view rendered on G2 glasses via Even Hub |
+| Part | Repo | Hosting | Tech | Purpose |
+|------|------|---------|------|---------|
+| **Bandtracker** | [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker) | GitHub Pages | Static site | All user-facing UI: PDF upload, staff selection, scroll building, song library, setlist builder, now-playing control |
+| **Processing API** | this repo (`admin/`) | Render (Node.js) | Next.js API routes only — no UI pages | Server-side PDF rendering, staff detection, scroll image building; exposes REST endpoints called by Bandtracker |
+| **Glasses app** | this repo (`glasses/`) | GitHub Pages | Vite + Even Hub SDK | Even Hub display client — scrolls sheet music on G2 glasses |
 
-### Even Hub (Glasses App)
-- The glasses app is a plain website: `index.html` in the project root + `Main.ts` as entry point
-- Served locally with Vite: `vite -i [YOUR_IP] -p [PORT]`
-- The Even Realities app on the user's phone connects to the Vite server and renders it on the glasses
+All three parts share the **same Supabase project** for data and storage.
+
+### Why the split
+- PDF processing (`mupdf`, `sharp`) requires a persistent Node.js server — it can't run in a browser or on a serverless/edge platform
+- Bandtracker is a static GitHub Pages site, so it delegates all heavy processing to the Render-hosted API via HTTP
+- The glasses app only needs to read `now_playing` at runtime — no processing needed
+
+### Processing API (this repo — `admin/`)
+- Lives at `admin/` in this repo; deployed to Render as a Node.js service
+- **API routes only** — no UI pages (upload/select pages have moved to Bandtracker)
+- Exposes: `POST /api/analyze`, `GET /api/pages/[jobId]/[pageIndex]`, `POST /api/detect-staff`, `POST /api/build`, `GET /api/songs`, `GET /api/now-playing`, `PUT /api/now-playing`
+- Uses `admin/tmp/` for ephemeral per-job file storage (PDF + rendered page PNGs); Render's disk is sufficient
+- Render environment variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- CORS must allow requests from `https://danabuuu.github.io` (Bandtracker) and the glasses app origin
+
+### Even Hub (Glasses App — this repo — `glasses/`)
+- Static Vite build deployed to GitHub Pages from this repo
+- The Even Realities phone app loads the GitHub Pages URL and renders it on the glasses
 - SDK bridge: `import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'`
-- Display size: **640×350**
-- Test with the Even Hub Simulator: `evenhub-simulator [VITE_IP]`
+- Display size: **640×350** (SDK coordinates: 576×288)
+- `VITE_ADMIN_URL` env var points to the Render-hosted Processing API URL (e.g. `https://er-sheetmusicscroll.onrender.com`)
+- Test locally with Vite dev server: `vite -i [YOUR_IP] -p [PORT]`; test with `evenhub-simulator [VITE_IP]`
 
 ### Tooling (Even Hub)
 ```sh
@@ -44,7 +59,16 @@ sudo npm install -g vite@latest
 ```
 
 ### Data Fetching
-The glasses app fetches song/setlist data from the **admin app's Next.js API routes** (e.g. `GET /api/songs`, `GET /api/setlists`). No separate backend needed.
+- **Bandtracker** → calls Processing API (Render) for all PDF/image operations; reads/writes Supabase directly for song library and setlist data
+- **Glasses app** → calls `GET /api/now-playing` on the Processing API to get the current song and `scroll_url`; fetches the scroll PNG from Supabase Storage directly
+
+### Database (Supabase)
+Current schema (Postgres via Supabase):
+
+| Table | Columns | Notes |
+|-------|---------|-------|
+| `songs` | `id`, `title`, `artist`, `tempo`, `scroll_url`, `created_at` | `artist` is optional. `scroll_url` points to a PNG in the `scrolls` Supabase Storage bucket. Will gain a `parts` JSONB column for multi-voice support. |
+| `now_playing` | `id` (always 1), `song_id` | Single-row table. `GET /api/now-playing` returns the current song; `PUT /api/now-playing { songId }` sets it. |
 
 ### Other
 - **Staff isolation**: Automatic detection of staff rows from the PDF, with a manual crop-box override per page
@@ -53,25 +77,41 @@ The glasses app fetches song/setlist data from the **admin app's Next.js API rou
 
 ## Tasks
 
-### Admin App (Next.js)
-- [ ] Scaffold Next.js project with TypeScript (`admin/`)
-- [ ] Set up database schema: `songs` (id, title, tempo, created_at, parts: `[{label, image_url}]` as JSONB), `setlists` (id, name), `setlist_songs` (setlist_id, song_id, position)
-- [ ] Build PDF upload UI and server-side storage (e.g. S3 or local disk)
-- [ ] Render PDF pages server-side; auto-detect staff rows using image processing (e.g. detect horizontal line clusters)
-- [ ] Show staff detection results to user with ability to manually adjust crop boxes per page
-- [ ] Extract and stitch selected staff rows across all pages into one long horizontal image; store in database
-- [ ] Build song metadata form (title, tempo BPM); save to database
-- [ ] Build song library page with rename and delete actions
-- [ ] Build setlist creation UI: pick songs from library, drag to reorder, save to database
+### Processing API — this repo `admin/` → deployed to Render
+- [x] Scaffold Next.js project with TypeScript (`admin/`)
+- [ ] Remove UI pages (`/upload`, `/select`) from `admin/` — UI has moved to Bandtracker
+- [ ] Add CORS middleware to allow requests from `https://danabuuu.github.io` and glasses app origin
+- [ ] Configure Render deployment (build command, env vars, persistent disk for `tmp/`)
+- [ ] Set up database schema: `songs` (id, title, artist, tempo, scroll_url, created_at), `now_playing` (id, song_id) — **currently managed directly in Supabase dashboard; no migration script yet**
+- [x] `POST /api/analyze` — saves PDF to `admin/tmp/`, renders pages, runs staff detection
+- [x] `GET /api/pages/[jobId]/[pageIndex]` — serves cached page PNG
+- [x] `POST /api/detect-staff` — manual staff grab at click Y
+- [x] `POST /api/build` — builds scroll PNG, uploads to Supabase Storage, updates `songs.scroll_url`
+- [x] `GET /api/songs` — returns all songs from DB
+- [x] `GET /api/now-playing` / `PUT /api/now-playing` — gets/sets the currently queued song
+- [ ] `POST /api/songs` — create a new song with title, artist, tempo
+- [ ] `PATCH /api/songs/[id]` — rename, update tempo
+- [ ] `DELETE /api/songs/[id]`
+- [ ] Add `parts` JSONB column to `songs` for multi-voice support; update `/api/build` for serial per-part workflow
 
-### Glasses App (Even Hub / Vite)
-- [ ] Scaffold Even Hub app with `index.html` + `Main.ts` + Vite config (`glasses/`)
-- [ ] Install Even Hub SDK and wire up `waitForEvenAppBridge`
-- [ ] On startup, call `createStartUpPageContainer` with one `ImageContainerProperty` (200×100, the scroll window) and one `ListContainerProperty` (playback controls: Play / Pause / +BPM / -BPM) with `isEventCapture: 1`
-- [ ] Fetch current song/setlist from admin API and store scroll image URL
-- [ ] Implement playback loop: on each tick (interval derived from BPM), crop next 200px-wide slice from scroll image and call `updateImageRawData` serially
-- [ ] Handle `onEvenHubEvent` listEvent to respond to play/pause/tempo controls via temple gesture
-- [ ] Wire setlist playback: on scroll image end, fetch next song and restart loop
+### Bandtracker — [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker)
+- [ ] Add PDF upload page: file picker → `POST {SCROLL_API_URL}/api/analyze` → redirect to staff selection
+- [ ] Add staff selection page: calls `GET {SCROLL_API_URL}/api/pages/[jobId]/[pageIndex]`, `POST /api/detect-staff`, `POST /api/build`
+- [ ] Add song library page: list, rename, delete songs; calls Processing API
+- [ ] Add setlist creation UI: pick songs, drag to reorder, save to Supabase
+- [ ] Add now-playing control: pick song/setlist, calls `PUT {SCROLL_API_URL}/api/now-playing`
+- [ ] `SCROLL_API_URL` env var pointing to the Render Processing API
+
+### Glasses App — this repo `glasses/` → deployed to GitHub Pages
+- [x] Scaffold Even Hub app with `index.html` + `Main.ts` + Vite config (`glasses/`)
+- [x] Install Even Hub SDK and wire up `waitForEvenAppBridge`
+- [x] On startup, call `createStartUpPageContainer` with one `ImageContainerProperty` (200×100 at position 0,94) and one `ListContainerProperty` (playback controls: ▶ Play / ⏸ Pause / + BPM / - BPM at position 0,200) with `isEventCapture: 1`
+- [x] Poll `GET /api/now-playing` on the Render API for the current song; fetch scroll PNG and decode into pixel slices via `OffscreenCanvas`
+- [x] Implement playback loop: on each tick (interval derived from BPM), extract next 200px-wide slice and send via `updateImageRawData`; fills with white when scroll ends
+- [x] Handle `onEvenHubEvent` listEvent to respond to Play / Pause / +BPM / -BPM via temple gesture
+- [x] When scroll ends, poll for next song and restart loop
+- [ ] Configure GitHub Actions to build `glasses/` and deploy to GitHub Pages on push to `main`
+- [ ] Wire setlist playback: ordered queue of songs, auto-advance
 - [ ] Test in Even Hub Simulator
 
 ## Open Questions

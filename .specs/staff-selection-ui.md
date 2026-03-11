@@ -45,27 +45,26 @@ Upload PDF
 ## Tasks
 
 ### Prerequisite
-- [ ] Scaffold the admin Next.js app (`admin/`) — see app-overview.md
+- [x] Processing API deployed to Render — see app-overview.md
+- [ ] Bandtracker configured with `SCROLL_API_URL` env var pointing to the Render API
 
-### API routes
-- [ ] `POST /api/detect-staff` — accept `{ pdfJobId, pageIndex, clickY: number }`, run staff detection on a horizontal slice around `clickY` on the given page, return a `StaffBox` (or error if no staff found near that point)
-- [ ] `POST /api/analyze` — accept a PDF file upload, run `analyzeScore()` from `lib/staff-extraction`, return `ScoreAnalysis` JSON + per-page image URLs
-- [ ] `GET /api/pages/[jobId]/[pageIndex]` — serve a rendered page image (greyscale PNG) for display in the UI
-- [ ] `POST /api/build` — accept `{ pdfJobId, label: string, selection: StaffSelection, paddingPx?: number }`, call `buildScrollImage()`, upload the PNG, return `{ label: string, imageUrl: string }`
-- [ ] `POST /api/songs` — accept `{ title, tempo, parts: SongPart[] }`, persist to DB, return the created song
+### Processing API routes (this repo `admin/` → Render)
+- [x] `POST /api/analyze` — accept a PDF file upload, run `analyzeScore()` from `lib/staff-extraction`, return `ScoreAnalysis` JSON + per-page image URLs
+- [x] `GET /api/pages/[jobId]/[pageIndex]` — serve a rendered page image (greyscale PNG) for display in the UI
+- [x] `POST /api/detect-staff` — accept `{ jobId, pageIndex, yNatural: number }`, run `detectStaffAtPoint` on the cached page image, return a `StaffBox` or 404 if no staff found
+- [x] `POST /api/build` — accept `{ jobId, staves: StaffBox[], songId?: number, tempo?: number }`, call `buildScrollImage()`, upload PNG to Supabase Storage (`scrolls` bucket), update `songs.scroll_url` and optionally `songs.tempo`, return the PNG with `X-Scroll-Url` header
+- [ ] `GET /api/songs` — returns all songs from DB ✅ exists; `POST /api/songs` — create a new song with title, tempo, parts — **not yet implemented** (songs currently must be pre-created directly in Supabase)
 
-### Frontend
-- [ ] `/upload` page: PDF file picker → calls `/api/analyze` on submit → redirects to `/select/[jobId]`
-- [ ] `/select/[jobId]` page: renders each page image with an SVG overlay of staff bounding boxes, numbered per system; shows label field, padding control, and current selection state
-- [ ] Clicking a staff box in any system selects it for that system (highlights yellow); clicking again deselects it
-- [ ] Clicking outside any detected bounding box calls `/api/detect-staff` with the click's Y coordinate; on success, the returned `StaffBox` is added as a custom selection for the nearest system and rendered with a distinct outline (e.g. dashed yellow) to indicate it was manually grabbed rather than auto-detected
-- [ ] Progress indicator showing "N / total systems selected"
-- [ ] "Build Scroll Image" button is disabled until all systems have a selection
-- [ ] Vertical padding control (slider or number input) applied per-part at build time
-- [ ] "Build Scroll Image" button → calls `/api/build` → displays result PNG inline for confirmation
-- [ ] "Save Part & Add Another" button → appends completed part to in-progress list, clears selections, advances label default, resets padding to default
-- [ ] "Save Part & Finish" button → appends final part, advances to song metadata form
-- [ ] Song metadata form: title and BPM inputs, "Save to Library" → calls `/api/songs` with all accumulated parts
+### Bandtracker frontend (danabuuu/BandTracker)
+- [ ] `/upload` page: PDF file picker → `POST {SCROLL_API_URL}/api/analyze` on submit → redirect to `/select/[jobId]`
+- [ ] `/select/[jobId]` page: fetches page images from `GET {SCROLL_API_URL}/api/pages/[jobId]/[pageIndex]`; renders each page with an SVG overlay of staff bounding boxes; sidebar shows song picker and BPM field
+- [ ] Clicking a staff box selects it (highlights yellow); clicking again deselects it
+- [ ] Clicking outside any detected bounding box calls `POST {SCROLL_API_URL}/api/detect-staff` with the click's Y coordinate; on success, the returned `StaffBox` is added as a custom selection and rendered with a distinct (green/dashed) outline. If it returns 404, the client falls back to a size-estimated bounding box at the click Y using the median stave height on that page.
+- [ ] Selection sidebar shows ordered scroll list; each entry can be removed individually or all cleared
+- [ ] "Build Scroll" button → calls `POST {SCROLL_API_URL}/api/build` with the ordered `StaffBox[]` → auto-saves PNG to the selected song's `scroll_url` in Supabase and displays inline preview with download link
+- [ ] Progress indicator showing "N / total staves selected"
+- [ ] **Multi-part serial workflow** (future): label field, "Save Part & Add Another" / "Save Part & Finish" buttons; accumulate `parts: SongPart[]` and save to songs DB
+- [ ] `POST /api/songs` for creating a new song inline — blocked on endpoint creation
 
 ## Open Questions
 - None currently.
