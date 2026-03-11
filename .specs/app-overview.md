@@ -55,7 +55,7 @@ The glasses app fetches song/setlist data from the **admin app's Next.js API rou
 
 ### Admin App (Next.js)
 - [ ] Scaffold Next.js project with TypeScript (`admin/`)
-- [ ] Set up database schema: `songs` (id, title, tempo, image_url, created_at), `setlists` (id, name), `setlist_songs` (setlist_id, song_id, position)
+- [ ] Set up database schema: `songs` (id, title, tempo, created_at, parts: `[{label, image_url}]` as JSONB), `setlists` (id, name), `setlist_songs` (setlist_id, song_id, position)
 - [ ] Build PDF upload UI and server-side storage (e.g. S3 or local disk)
 - [ ] Render PDF pages server-side; auto-detect staff rows using image processing (e.g. detect horizontal line clusters)
 - [ ] Show staff detection results to user with ability to manually adjust crop boxes per page
@@ -75,4 +75,4 @@ The glasses app fetches song/setlist data from the **admin app's Next.js API rou
 - [ ] Test in Even Hub Simulator
 
 ## Open Questions
-- The root `package.json` currently has `@evenrealities/even_hub_sdk` installed at the workspace root. Move it into `glasses/` when that folder is scaffolded.
+- ~~The root `package.json` currently has `@evenrealities/even_hub_sdk` installed at the workspace root. Move it into `glasses/` when that folder is scaffolded.~~ ✅ Done — SDK is now only in `glasses/package.json`.

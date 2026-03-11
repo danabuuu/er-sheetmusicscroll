@@ -20,6 +20,7 @@
 - [x] `extractStrip(imageBuffer, staffBox, targetHeight: 100)` — crop staff row + resize to 100px tall
 - [x] `stitchStrips(strips: Buffer[])` — compose strips left-to-right into one wide PNG using `sharp`
 - [x] `buildScrollImage(pdfPath, selection: StaffSelection)` — main entry point: analyze → extract → stitch → return final PNG buffer
+- [ ] `buildScrollImages(pdfPath, parts: Array<{ label: string, selection: StaffSelection }>)` — convenience wrapper that calls `buildScrollImage` once per part and returns `Array<{ label: string, buffer: Buffer }>` (avoids re-rendering PDF pages for each part by sharing the rasterized page cache)
 - [x] Manual test script (`lib/staff-extraction/test-run.ts`) that accepts a real PDF path and writes the output PNG to disk for visual inspection
 
 ## Open Questions
