@@ -23,12 +23,142 @@ export function renderPageToImage(pdfPath: string, pageIndex: number): Buffer {
 
 // ─── Task 3: detectStaves ─────────────────────────────────────────────────────
 
+interface ScanCfg {
+  darkThreshold: number;
+  staffLinePxMax: number;
+  searchWindow: number;
+  spacingMax: number;
+  spacingMin: number;
+}
+
+function buildScanCfg(height: number): ScanCfg {
+  const staffLinePxMax = Math.min(30, Math.max(5, Math.round(height / 300)));
+  return {
+    darkThreshold: 200,
+    staffLinePxMax,
+    searchWindow: Math.max(2, Math.round(staffLinePxMax / 2)),
+    spacingMax: Math.min(200, Math.max(25, staffLinePxMax * 4)),
+    spacingMin: Math.max(3, Math.round(staffLinePxMax * 0.8)),
+  };
+}
+
 /**
- * Detects individual staff bounding boxes on a rendered page image.
+ * Core band-scan function. Builds a horizontal projection profile for the
+ * pixel rectangle [xs,xe) × [ys,ye), finds thin dark segments, then searches
+ * for 5-line stave motifs using consistent inter-line spacing.
  *
- * Strategy: horizontal projection profile — sum dark pixels per row to find
- * staff lines, then cluster 5-line groups into staves.
+ * @param xs/xe  Horizontal range (columns) to consider
+ * @param ys/ye  Vertical range (rows) to consider; rows outside are ignored
+ * @param minFrac  Minimum dark-pixel fraction to count a row as "dark"
+ * @param maxThick Maximum segment height (rows) to qualify as a staff line
+ * @param gapTol  Max gap (rows) between consecutive dark rows before splitting
  */
+function scanBand(
+  data: Buffer,
+  width: number,
+  height: number,
+  pageIndex: number,
+  xs: number, xe: number,
+  ys: number, ye: number,
+  minFrac: number,
+  maxThick: number,
+  gapTol: number,
+  cfg: ScanCfg,
+): StaffBox[] {
+  const { darkThreshold, staffLinePxMax, searchWindow, spacingMax, spacingMin } = cfg;
+  const bw = xe - xs;
+
+  const profile = new Float32Array(height);
+  for (let y = ys; y < ye; y++) {
+    let dark = 0;
+    for (let x = xs; x < xe; x++) {
+      if (data[y * width + x] < darkThreshold) dark++;
+    }
+    profile[y] = dark / bw;
+  }
+
+  const segs: { top: number; bottom: number }[] = [];
+  for (let y = ys; y < ye; y++) {
+    if (profile[y] < minFrac) continue;
+    if (segs.length === 0 || y > segs[segs.length - 1].bottom + gapTol) {
+      segs.push({ top: y, bottom: y });
+    } else {
+      segs[segs.length - 1].bottom = y;
+    }
+  }
+
+  const thin = segs.filter(s => s.bottom - s.top <= maxThick);
+
+  // Map EVERY row in each thin segment → segment index.
+  // Using all rows (not just the midpoint) ensures the search finds a segment
+  // even when its midpoint is offset from the expected staff-line position
+  // (e.g. when dense notation merges into the top of a segment, shifting the mid).
+  const rowToSeg = new Map<number, number>();
+  for (let k = 0; k < thin.length; k++) {
+    for (let r = thin[k].top; r <= thin[k].bottom; r++) {
+      rowToSeg.set(r, k);
+    }
+  }
+
+  const result: StaffBox[] = [];
+  const usedRows = new Set<number>();
+
+  for (let k = 0; k < thin.length; k++) {
+    const seg0 = thin[k];
+    const mid0 = Math.round((seg0.top + seg0.bottom) / 2);
+    if (usedRows.has(seg0.top) || usedRows.has(seg0.bottom) || usedRows.has(mid0)) continue;
+
+    let bestGroup: number[] | null = null;
+    let bestD = 0;
+
+    spacingSearch:
+    for (let d = spacingMin; d <= spacingMax; d++) {
+      const win = Math.min(searchWindow, Math.max(1, Math.floor(d / 4)));
+      const group: number[] = [mid0];
+      for (let line = 1; line < 5; line++) {
+        const expected = mid0 + line * d;
+        let found = -1;
+        for (let delta = -win; delta <= win; delta++) {
+          if (rowToSeg.has(expected + delta)) { found = expected + delta; break; }
+        }
+        if (found < 0) continue spacingSearch;
+        if (usedRows.has(found)) continue spacingSearch;
+        group.push(found);
+      }
+
+      const gaps = group.slice(1).map((m, i) => m - group[i]);
+      const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+      const maxDev = Math.max(...gaps.map(g => Math.abs(g - avgGap)));
+      if (maxDev < avgGap * 0.3 && avgGap >= spacingMin) {
+        bestGroup = group;
+        bestD = Math.round(avgGap);
+        break;
+      }
+    }
+
+    if (!bestGroup) continue;
+
+    const segFirst = thin[rowToSeg.get(bestGroup[0])!];
+    const segLast  = thin[rowToSeg.get(bestGroup[4])!];
+    const lineTop    = segFirst.top;
+    const lineBottom = segLast.bottom;
+    const padding    = Math.round(bestD * 0.6);
+
+    for (let r = lineTop; r <= lineBottom; r++) usedRows.add(r);
+
+    result.push({
+      lineTop,
+      lineBottom,
+      top:    Math.max(0, lineTop - padding),
+      bottom: Math.min(height - 1, lineBottom + padding),
+      pageIndex,
+    });
+  }
+
+  result.sort((a, b) => a.lineTop - b.lineTop);
+  return result;
+}
+
 export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Promise<StaffBox[]> {
   const { data, info } = await sharp(imageBuffer)
     .greyscale()
@@ -36,79 +166,60 @@ export async function detectStaves(imageBuffer: Buffer, pageIndex: number): Prom
     .toBuffer({ resolveWithObject: true });
 
   const { width, height } = info;
+  const cfg = buildScanCfg(height);
 
-  // At 150 DPI, thin staff lines are often anti-aliased to gray (value ~150-200).
-  // Using 200 catches both solid black and gray lines without picking up the
-  // white (255) background.  MIN_DARK_FRACTION of 20% is enough to require
-  // substantial line coverage while ignoring local note/text clusters.
-  const DARK_THRESHOLD = 200;
-  const MIN_DARK_FRACTION = 0.20;
+  let staves = scanBand(data, width, height, pageIndex, 0, width, 0, height, 0.15, cfg.staffLinePxMax, 1, cfg);
 
-  // Build projection profile: darkness count per row
-  const profile: number[] = new Array(height).fill(0);
-  for (let y = 0; y < height; y++) {
-    let darkCount = 0;
-    for (let x = 0; x < width; x++) {
-      if (data[y * width + x] < DARK_THRESHOLD) darkCount++;
-    }
-    profile[y] = darkCount;
-  }
+  if (staves.length < 2)
+    staves = scanBand(data, width, height, pageIndex, 0, width, 0, height, 0.08, cfg.staffLinePxMax, 1, cfg);
 
-  // Find candidate staff-line rows (rows with enough dark pixels)
-  const minDark = Math.floor(width * MIN_DARK_FRACTION);
-  const lineRows: number[] = [];
-  for (let y = 0; y < height; y++) {
-    if (profile[y] >= minDark) lineRows.push(y);
-  }
-
-  // Merge consecutive dark rows into line segments.
-  // Allow up to 4-row gaps for anti-aliased thin lines.
-  // A larger gap would merge two adjacent staves in dense scores.
-  const segments: { top: number; bottom: number }[] = [];
-  for (const row of lineRows) {
-    if (segments.length === 0 || row > segments[segments.length - 1].bottom + 4) {
-      segments.push({ top: row, bottom: row });
-    } else {
-      segments[segments.length - 1].bottom = row;
-    }
-  }
-
-  // Group segments into staves: a staff = 5 lines roughly equally spaced.
-  // We look for runs of 5 consecutive segments where spacing is consistent.
-  const staves: StaffBox[] = [];
-  let i = 0;
-  while (i <= segments.length - 5) {
-    // Measure spacing between segment midpoints
-    const mids = segments.slice(i, i + 5).map(s => Math.round((s.top + s.bottom) / 2));
-    const gaps = mids.slice(1).map((m, idx) => m - mids[idx]);
-    const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-    const maxDeviation = Math.max(...gaps.map(g => Math.abs(g - avgGap)));
-
-    // Accept if gaps are consistent (deviation < 60% of avg gap) and reasonably
-    // sized.  60% is more permissive than the old 40% to handle cases where
-    // some lines are detected slightly off-position due to anti-aliasing.
-    // Upper limit 150px covers even large-format PDFs rendered at 150 DPI.
-    if (maxDeviation < avgGap * 0.6 && avgGap >= 1 && avgGap <= 150) {
-      // lineTop/lineBottom = actual outermost staff line pixels (no padding).
-      // These are used for gap measurement to keep inter-stave metrics accurate.
-      const lineTop    = segments[i].top;
-      const lineBottom = segments[i + 4].bottom;
-      // Pad slightly above/below for the render crop box.
-      const padding = Math.round(avgGap * 0.6);
-      staves.push({
-        lineTop,
-        lineBottom,
-        top:    Math.max(0, lineTop - padding),
-        bottom: Math.min(height - 1, lineBottom + padding),
-        pageIndex,
-      });
-      i += 5; // skip past the matched 5 lines
-    } else {
-      i++;
-    }
+  if (staves.length < 2) {
+    const clefXs = Math.max(1, Math.floor(width * 0.02));
+    const clefXe = Math.min(width, Math.floor(width * 0.30));
+    staves = scanBand(data, width, height, pageIndex, clefXs, clefXe, 0, height, 0.03, cfg.staffLinePxMax, 1, cfg);
   }
 
   return staves;
+}
+
+/**
+ * Detects the single staff closest to the given natural-image y-coordinate.
+ * Restricts scanning to a vertical window around the click, which both speeds
+ * up processing and avoids false positives from the rest of the page.
+ * Useful for recovering staves that auto-detection missed.
+ */
+export async function detectStaffAtPoint(
+  imageBuffer: Buffer,
+  pageIndex: number,
+  yNatural: number,
+): Promise<StaffBox | null> {
+  const { data, info } = await sharp(imageBuffer)
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width, height } = info;
+  const cfg = buildScanCfg(height);
+
+  // Window must be large enough to contain a full 5-line staff (4 gaps × max spacing)
+  const WINDOW = Math.max(300, cfg.spacingMax * 6);
+  const ys = Math.max(0, yNatural - WINDOW);
+  const ye = Math.min(height, yNatural + WINDOW);
+
+  // Try minFrac=0.15 first (same as primary detectStaves scan) — this keeps rows
+  // between staff lines below threshold so individual lines form separate thin segments.
+  let staves = scanBand(data, width, height, pageIndex, 0, width, ys, ye, 0.15, cfg.staffLinePxMax, 1, cfg);
+  if (staves.length === 0)
+    staves = scanBand(data, width, height, pageIndex, 0, width, ys, ye, 0.08, cfg.staffLinePxMax, 1, cfg);
+  if (staves.length === 0)
+    staves = scanBand(data, width, height, pageIndex, 0, width, ys, ye, 0.03, cfg.staffLinePxMax, 1, cfg);
+
+  if (staves.length === 0) return null;
+
+  // Only return a stave if the click actually lands within its padded bounds.
+  // Do NOT fall back to returning the nearest stave — that would hand back an
+  // already-detected stave when the user clicks in a gap where nothing was found.
+  return staves.find(s => s.top <= yNatural && yNatural <= s.bottom) ?? null;
 }
 
 // ─── Task 5: analyzeScore ────────────────────────────────────────────────────
