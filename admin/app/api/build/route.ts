@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import type { StaffBox } from '@lib/staff-extraction/types';
 import { buildScrollImage } from '@lib/staff-extraction';
 import { pdfPath, isValidJobId } from '@/lib/jobs';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 
 const BUCKET = 'scrolls';
 
@@ -36,22 +36,24 @@ export async function POST(request: NextRequest) {
   let scrollUrl: string | null = null;
   if (typeof songId === 'number') {
     const filePath = `${songId}.png`;
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseAdmin.storage
       .from(BUCKET)
       .upload(filePath, png, { contentType: 'image/png', upsert: true });
 
     if (uploadError) {
       console.error('Storage upload failed:', uploadError.message);
     } else {
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = supabaseAdmin.storage
         .from(BUCKET)
         .getPublicUrl(filePath);
       scrollUrl = publicUrl;
 
       const updates: Record<string, unknown> = { scroll_url: scrollUrl };
-      if (typeof tempo === 'number' && tempo > 0) updates.tempo = tempo;
+      const tempoNum = typeof tempo === 'number' ? tempo : (typeof tempo === 'string' ? parseInt(tempo, 10) : NaN);
+      if (!isNaN(tempoNum) && tempoNum > 0) updates.tempo = tempoNum;
 
-      await supabase.from('songs').update(updates).eq('id', songId);
+      const { error: dbError } = await supabaseAdmin.from('songs').update(updates).eq('id', songId);
+      if (dbError) console.error('DB update failed:', dbError.message);
     }
   }
 
