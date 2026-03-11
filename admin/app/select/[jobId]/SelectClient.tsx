@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ScoreAnalysis, StaffBox } from '@lib/staff-extraction/types';
+import type { Song } from '@/lib/supabase';
 
 interface SelectionEntry {
   stave: StaffBox;
@@ -30,6 +31,16 @@ export default function SelectClient({ jobId, analysis }: Props) {
   const [building, setBuilding] = useState(false);
   const [scrollUrl, setScrollUrl] = useState<string | null>(null);
   const [buildError, setBuildError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  // Song picker
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [selectedSongId, setSelectedSongId] = useState<number | null>(null);
+  const [tempo, setTempo] = useState<string>('');
+
+  useEffect(() => {
+    fetch('/api/songs').then(r => r.json()).then(setSongs).catch(() => {});
+  }, []);
 
   // key → 1-based position in selection (for overlay labels)
   const selectionPos = new Map(selection.map((e, pos) => [e.key, pos + 1]));
@@ -121,11 +132,18 @@ export default function SelectClient({ jobId, analysis }: Props) {
     setBuilding(true);
     setBuildError('');
     setScrollUrl(null);
+    setSaved(false);
     try {
+      const tempoNum = tempo.trim() !== '' ? parseInt(tempo, 10) : undefined;
       const res = await fetch('/api/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, staves: selection.map(e => e.stave) }),
+        body: JSON.stringify({
+          jobId,
+          staves: selection.map(e => e.stave),
+          ...(selectedSongId !== null ? { songId: selectedSongId } : {}),
+          ...(tempoNum && tempoNum > 0 ? { tempo: tempoNum } : {}),
+        }),
       });
       if (!res.ok) {
         const { error } = await res.json();
@@ -133,6 +151,7 @@ export default function SelectClient({ jobId, analysis }: Props) {
       }
       const blob = await res.blob();
       setScrollUrl(URL.createObjectURL(blob));
+      if (selectedSongId !== null) setSaved(true);
     } catch (err) {
       setBuildError(err instanceof Error ? err.message : 'Build failed');
     } finally {
@@ -204,6 +223,43 @@ export default function SelectClient({ jobId, analysis }: Props) {
 
       {/* ── Selection sidebar ───────────────────────────────────────────── */}
       <aside className="fixed top-[3.75rem] right-0 h-[calc(100vh-3.75rem)] w-56 z-10 border-l border-gray-200 bg-white flex flex-col">
+
+          {/* Song + tempo */}
+          <div className="shrink-0 border-b border-gray-100 p-3 flex flex-col gap-2">
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Song</label>
+            <select
+              value={selectedSongId ?? ''}
+              onChange={e => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                setSelectedSongId(id);
+                if (id) {
+                  const song = songs.find(s => s.id === id);
+                  if (song?.tempo) setTempo(String(song.tempo));
+                }
+              }}
+              className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 bg-white"
+            >
+              <option value="">— no song —</option>
+              {songs.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.title}{s.artist ? ` · ${s.artist}` : ''}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400 shrink-0">BPM</label>
+              <input
+                type="number"
+                min={20}
+                max={300}
+                value={tempo}
+                onChange={e => setTempo(e.target.value)}
+                placeholder="e.g. 120"
+                className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              />
+            </div>
+          </div>
+
           {/* Scroll order list — scrollable */}
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
@@ -252,6 +308,9 @@ export default function SelectClient({ jobId, analysis }: Props) {
               )}
               {scrollUrl && (
                 <>
+                  {saved && (
+                    <p className="text-xs font-semibold text-green-600">✓ Saved to library</p>
+                  )}
                   <p className="text-xs font-semibold text-gray-600">Scroll preview</p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
