@@ -79,9 +79,11 @@ Current schema (Postgres via Supabase):
 
 ### Processing API — this repo `admin/` → deployed to Render
 - [x] Scaffold Next.js project with TypeScript (`admin/`)
-- [ ] Remove UI pages (`/upload`, `/select`) from `admin/` — UI has moved to Bandtracker
-- [ ] Add CORS middleware to allow requests from `https://danabuuu.github.io` and glasses app origin
-- [ ] Configure Render deployment (build command, env vars, persistent disk for `tmp/`)
+- [x] CORS middleware (`admin/middleware.ts`) — allows requests from `https://danabuuu.github.io` and localhost in dev
+- [x] `render.yaml` Blueprint — defines web service, persistent disk mount at `/opt/render/project/src/tmp`, env vars
+- [x] `TMP_DIR` env var support in `admin/lib/jobs.ts` — defaults to `<cwd>/tmp` locally, uses Render disk path in production; dir created at startup
+- [x] `admin/.env.example` documenting required env vars
+- [ ] Remove UI pages (`/upload`, `/select`) from `admin/` — UI has moved to Bandtracker _(do after Bandtracker has parity)_
 - [ ] Set up database schema: `songs` (id, title, artist, tempo, scroll_url, created_at), `now_playing` (id, song_id) — **currently managed directly in Supabase dashboard; no migration script yet**
 - [x] `POST /api/analyze` — saves PDF to `admin/tmp/`, renders pages, runs staff detection
 - [x] `GET /api/pages/[jobId]/[pageIndex]` — serves cached page PNG
