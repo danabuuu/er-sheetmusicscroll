@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
-import { pagePath, isValidJobId } from '@/lib/jobs';
+import { isValidJobId } from '@/lib/jobs';
+import { downloadJobFile } from '@/lib/supabase-jobs';
 
 export async function GET(
   _request: NextRequest,
@@ -17,12 +17,12 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid page index' }, { status: 400 });
   }
 
-  const filePath = pagePath(jobId, pageIndex);
-  if (!existsSync(filePath)) {
+  const data = await downloadJobFile(jobId, `page-${pageIndex}.png`);
+  if (!data) {
     return NextResponse.json({ error: 'Page not found' }, { status: 404 });
   }
 
-  return new NextResponse(readFileSync(filePath), {
+  return new NextResponse(data.buffer as ArrayBuffer, {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=3600, immutable',

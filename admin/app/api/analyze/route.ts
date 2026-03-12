@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { randomUUID } from 'crypto';
+import path from 'path';
 import { analyzeScore, renderPageToImage } from '@lib/staff-extraction';
-import { jobDir, pdfPath, analysisPath, pagePath } from '@/lib/jobs';
+import { isValidJobId } from '@/lib/jobs';
+import { uploadJobFile } from '@/lib/supabase-jobs';
+
+// Allow up to 60 s on Vercel Pro (Hobby is capped at 10 s but this export is harmless there).
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const form = await request.formData();
@@ -16,20 +21,38 @@ export async function POST(request: NextRequest) {
   }
 
   const jobId = randomUUID();
-  mkdirSync(jobDir(jobId), { recursive: true });
+  const tmpDir = path.join('/tmp', jobId);
+  const tmpPdf = path.join(tmpDir, 'upload.pdf');
 
-  // Save uploaded PDF to disk
-  const bytes = await file.arrayBuffer();
-  writeFileSync(pdfPath(jobId), Buffer.from(bytes));
+  try {
+    mkdirSync(tmpDir, { recursive: true });
+    const pdfBuffer = Buffer.from(await file.arrayBuffer());
+    writeFileSync(tmpPdf, pdfBuffer);
 
-  // Analyze — detects staves, groups into systems, returns pageCount
-  const analysis = await analyzeScore(pdfPath(jobId));
-  writeFileSync(analysisPath(jobId), JSON.stringify(analysis));
+    // Analyze — detects staves and counts pages
+    const analysis = await analyzeScore(tmpPdf);
 
-  // Pre-render and cache all page images so the pages route is instant
-  for (let i = 0; i < analysis.pageCount; i++) {
-    writeFileSync(pagePath(jobId, i), renderPageToImage(pdfPath(jobId), i));
+    // Upload PDF and analysis JSON to Supabase Storage (jobs bucket)
+    await uploadJobFile(jobId, 'upload.pdf', pdfBuffer, 'application/pdf');
+    await uploadJobFile(
+      jobId,
+      'analysis.json',
+      Buffer.from(JSON.stringify(analysis)),
+      'application/json',
+    );
+
+    // Pre-render all page images and upload them
+    for (let i = 0; i < analysis.pageCount; i++) {
+      const pageBuffer = renderPageToImage(tmpPdf, i);
+      await uploadJobFile(jobId, `page-${i}.png`, pageBuffer, 'image/png');
+    }
+
+    return NextResponse.json({ jobId, analysis });
+  } finally {
+    // Best-effort cleanup of /tmp
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   }
-
-  return NextResponse.json({ jobId, analysis });
 }
+
+// Silence unused-import warning — isValidJobId is not used here but keeps the jobs module in sync.
+void (isValidJobId as unknown);

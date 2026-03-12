@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
 import { detectStaffAtPoint } from '@lib/staff-extraction';
-import { pagePath, isValidJobId } from '@/lib/jobs';
+import { isValidJobId } from '@/lib/jobs';
+import { downloadJobFile } from '@/lib/supabase-jobs';
 
 export async function POST(request: NextRequest) {
   const body = await request.json() as { jobId?: unknown; pageIndex?: unknown; yNatural?: unknown };
@@ -17,14 +17,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid yNatural' }, { status: 400 });
   }
 
-  const imgPath = pagePath(jobId, pageIndex);
-  if (!existsSync(imgPath)) {
+  const imageBuffer = await downloadJobFile(jobId, `page-${pageIndex}.png`);
+  if (!imageBuffer) {
     return NextResponse.json({ error: 'Page not found' }, { status: 404 });
   }
 
-  const imageBuffer = readFileSync(imgPath);
   const stave = await detectStaffAtPoint(imageBuffer, pageIndex, Math.round(yNatural));
-
   if (!stave) {
     return NextResponse.json({ error: 'No staff detected at that position' }, { status: 404 });
   }
