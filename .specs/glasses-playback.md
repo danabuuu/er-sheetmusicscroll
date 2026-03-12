@@ -69,6 +69,25 @@ List items are populated from the `gigs` table at runtime. Selecting a gig item 
 - Height: 100px
 - Produced by admin build with `rows=2`: pairs of staves stacked 50px each into 100px columns, each column scaled to 576×100
 
+## Deployment
+
+The glasses app is a **static Vite build deployed to GitHub Pages** at:
+
+```
+https://danabuuu.github.io/er-sheetmusicscroll/
+```
+
+The Even Realities phone app loads this URL and renders the page on the G2 glasses.
+
+Deployment is fully automated via `.github/workflows/deploy-glasses.yml`:
+- Triggers on every push to `main` that touches `glasses/` (or the workflow file itself)
+- Runs `npm run build` in `glasses/` with `CI=true`, which sets `base: '/er-sheetmusicscroll/'` in vite.config.ts
+- Uploads `glasses/dist` to GitHub Pages via `actions/upload-pages-artifact` + `actions/deploy-pages`
+
+**Local development:** `cd glasses && vite --host 0.0.0.0 --port 5173`, then point the simulator or phone app at `http://<your-local-ip>:5173`.
+
+**Environment variable:** `VITE_ADMIN_URL` must be set (in `glasses/.env.local` for dev, or as a build secret in CI) to the Vercel Processing API URL.
+
 ## Tasks
 - [x] Scaffold `glasses/` with `index.html`, `Main.ts`, `vite.config.ts`
 - [x] Install `@evenrealities/even_hub_sdk` in `glasses/`
