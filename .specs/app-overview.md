@@ -101,8 +101,9 @@ Current schema (Postgres via Supabase):
 ### Bandtracker — [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker)
 - [ ] Add PDF upload page: file picker → `POST {SCROLL_API_URL}/api/analyze` → redirect to staff selection
 - [ ] Add staff selection page: calls `GET {SCROLL_API_URL}/api/pages/[jobId]/[pageIndex]`, `POST /api/detect-staff`, `POST /api/build`
-- [ ] Add song library page: list, rename, delete songs; calls Processing API
-- [ ] Add setlist creation UI: pick songs, drag to reorder, save to Supabase
+- [ ] Add song library home page: list all saved songs with Queue (→ `PUT /api/now-playing`) and delete actions; "Upload new PDF" button
+- [ ] Add back-navigation: upload page → library, select page → library; post-save "Upload another" button
+- [ ] Add setlist creation UI: pick songs, drag to reorder, save to Supabase — see setlist-playback.md
 - [ ] Add now-playing control: pick song/setlist, calls `PUT {SCROLL_API_URL}/api/now-playing`
 - [ ] `SCROLL_API_URL` env var pointing to the Render Processing API
 

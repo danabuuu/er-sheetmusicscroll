@@ -12,6 +12,8 @@
 - Because parts are built independently, each part can have its own vertical padding setting, and the same staff position can be selected for more than one part across different systems without conflict.
 - The final scroll image for each part uses fixed vertical padding around each staff strip (proportional to staff height) so that when viewed as a horizontal scroll, the staff lines appear at a consistent vertical position — creating the illusion of one continuous staff.
 - On save, all completed parts (label + image URL) are stored together under the song.
+- A library home page shows all saved songs and provides navigation to upload a new PDF or queue a song for playback
+- All pages have clear navigation: the select page has a link back to the library (or to upload a new PDF), and after saving a song the user can immediately start another upload
 
 ## Data Shape
 
@@ -63,6 +65,8 @@ Upload PDF
 - [ ] Selection sidebar shows ordered scroll list; each entry can be removed individually or all cleared
 - [ ] "Build Scroll" button → calls `POST {SCROLL_API_URL}/api/build` with the ordered `StaffBox[]` → auto-saves PNG to the selected song's `scroll_url` in Supabase and displays inline preview with download link
 - [ ] Progress indicator showing "N / total staves selected"
+- [ ] Library home page (`/`): list songs with Queue and delete actions; "Upload new PDF" button
+- [ ] Back-navigation: upload page → library, select page → library; post-save "Upload another" button
 - [ ] **Multi-part serial workflow** (future): label field, "Save Part & Add Another" / "Save Part & Finish" buttons; accumulate `parts: SongPart[]` and save to songs DB
 - [ ] `POST /api/songs` for creating a new song inline — blocked on endpoint creation
 
