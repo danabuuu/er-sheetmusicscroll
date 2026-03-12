@@ -1,8 +1,8 @@
 import path from 'path';
 import { mkdirSync } from 'fs';
 
-// On Render the persistent disk is mounted at a fixed path.
-// Locally (and in CI) fall back to a tmp/ folder next to the Next.js project root.
+// Locally fall back to a tmp/ folder next to the Next.js project root.
+// In production (Vercel) job files are stored in Supabase Storage instead.
 export const TMP_DIR =
   process.env.TMP_DIR ??
   path.join(process.cwd(), 'tmp');

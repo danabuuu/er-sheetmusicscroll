@@ -47,11 +47,11 @@ Upload PDF
 ## Tasks
 
 ### Prerequisite
-- [x] Processing API deployed to Render — see app-overview.md
-- [ ] Bandtracker configured with `SCROLL_API_URL` env var pointing to the Render API
+- [x] Processing API deployed to Vercel — see app-overview.md
+- [ ] Bandtracker configured with `SCROLL_API_URL` env var pointing to the Vercel API
 
-### Processing API routes (this repo `admin/` → Render)
-- [x] `POST /api/analyze` — accept a PDF file upload, run `analyzeScore()` from `lib/staff-extraction`, return `ScoreAnalysis` JSON + per-page image URLs
+### Processing API routes (this repo `admin/` → Vercel)
+- [ ] `POST /api/analyze` — accept a PDF file upload, store PDF + rendered page PNGs in Supabase Storage (`jobs` bucket), run `analyzeScore()`, return `ScoreAnalysis` JSON + job ID
 - [x] `GET /api/pages/[jobId]/[pageIndex]` — serve a rendered page image (greyscale PNG) for display in the UI
 - [x] `POST /api/detect-staff` — accept `{ jobId, pageIndex, yNatural: number }`, run `detectStaffAtPoint` on the cached page image, return a `StaffBox` or 404 if no staff found
 - [x] `POST /api/build` — accept `{ jobId, staves: StaffBox[], songId?: number, tempo?: number }`, call `buildScrollImage()`, upload PNG to Supabase Storage (`scrolls` bucket), update `songs.scroll_url` and optionally `songs.tempo`, return the PNG with `X-Scroll-Url` header

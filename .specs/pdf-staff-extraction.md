@@ -1,6 +1,6 @@
 # Feature: PDF Staff Extraction
 
-> **Deployment note**: This module runs exclusively in the **Processing API** (`admin/`) hosted on Render. It uses Node.js-only native binaries (`mupdf`, `sharp`) and cannot run in a browser or on a serverless/edge platform.
+> **Deployment note**: This module runs exclusively in the **Processing API** (`admin/`) hosted on Vercel. It uses Node.js-only packages (`mupdf`, `sharp`) and cannot run in a browser. Intermediate job files (PDF + rendered page PNGs) are stored in Supabase Storage (`jobs` bucket) since Vercel functions have no persistent disk.
 
 ## Requirements
 - Module accepts a PDF file and renders each page to a raster image at sufficient DPI
