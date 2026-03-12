@@ -32,15 +32,22 @@ Glasses app — idle/selection state
   Controls list shows gig names; user scrolls + selects via temple or ring
   → selectGig(gigId)
 
+Glasses app — part selection state
+  Fetch all songs for the gig; collect unique part labels (from songs.parts[].label)
+  If only one label (or none): skip this state
+  Controls list shows part labels (e.g. "T", "B") + "← Back to gigs"
+  User selects their voice part → selectedPart = label
+  → enterReady()
+
 Glasses app — ready state
-  Query `setlist_items` JOIN `songs` for gigId; filter scroll_url IS NOT NULL; order by position
-  Pre-fetch first song scroll PNG → show preview in image containers
-  Controls list: ["▶ Start", "← Back to gigs"]
+  Resolve first song's scroll URL: parts.find(p => p.label === selectedPart)?.imageUrl ?? scroll_url
+  Pre-fetch scroll PNG → show preview in image containers
+  Controls list: ["▶ Start", "← Back"]
   User selects "▶ Start" → begin playback from song 0
-  User selects "← Back to gigs" → return to idle state
+  User selects "← Back" → return to part selection (or idle if skipped)
 
 Glasses app — playing state
-  playSetlistFrom(songs, 0) → play songs[0], on end call playSetlistFrom(songs, 1)
+  playSetlistFrom(songs, 0) → resolve + play songs[0], on end call playSetlistFrom(songs, 1)
   When exhausted: show "Setlist complete", return to idle state
 ```
 
@@ -77,13 +84,16 @@ ALTER TABLE now_playing ADD COLUMN gig_id integer;
 
 ### Glasses App (`glasses/Main.ts`)
 - [ ] `fetchGigs()` — query Supabase `gigs` table, return `{ id, name, date }[]` ordered by date desc
-- [ ] `fetchSetlistSongs(gigId)` — join `setlist_items` → `songs`, filter `scroll_url IS NOT NULL`, order by `position`; return `Song[]`
-- [ ] Implement `AppState` enum: `IDLE | READY | PLAYING`
+- [ ] `fetchSetlistSongs(gigId)` — join `setlist_items` → `songs`, order by `position`; return `Song[]` (including `parts` field)
+- [ ] Implement `AppState` enum: `IDLE | PART_SELECT | READY | PLAYING`
 - [ ] IDLE: call `fetchGigs()` on entry; `updateListData(gigNames)` on controls list
 - [ ] IDLE `onEvenHubEvent`: selecting index N → `selectGig(gigs[N].id)`
-- [ ] `selectGig(gigId)`: fetch songs, pre-load first scroll PNG, transition to READY state; `updateListData(['▶ Start', '← Back to gigs'])`
-- [ ] READY `onEvenHubEvent`: index 0 → `playSetlistFrom(songs, 0)`; index 1 → return to IDLE
-- [ ] `playSetlistFrom(songs, index)` — load `songs[index]`, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted: set status "Setlist complete", return to IDLE
+- [ ] `selectGig(gigId)`: fetch songs; collect unique part labels; if ≤1 label skip to `enterReady(selectedPart)`; else populate part list + "← Back to gigs", set state PART_SELECT
+- [ ] PART_SELECT `onEvenHubEvent`: selecting a label → `enterReady(label)`; last item ("← Back") → return to IDLE
+- [ ] `enterReady(selectedPart)`: resolve first song's scroll URL via `parts.find(p => p.label === selectedPart)?.imageUrl ?? scroll_url`; pre-load PNG; `updateListData(['▶ Start', '← Back'])`, set state READY
+- [ ] READY `onEvenHubEvent`: index 0 → `playSetlistFrom(songs, 0)`; index 1 → back to PART_SELECT (or IDLE if skipped)
+- [ ] `resolveScrollUrl(song, selectedPart)` — helper: find matching part URL or fall back to `scroll_url`; return null if neither exists (song will be skipped)
+- [ ] `playSetlistFrom(songs, index)` — resolve URL, load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted: set status "Setlist complete", return to IDLE
 - [ ] PLAYING `onEvenHubEvent`: Play / Pause / +BPM / -BPM / → Step / ← Back (see `glasses-playback.md`)
 
 ### Optional

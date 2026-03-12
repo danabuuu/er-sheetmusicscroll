@@ -2,19 +2,28 @@
 
 ## Requirements
 - On startup the app connects to the Even Hub SDK bridge and registers a layout of 4 containers: one controls list and three side-by-side image containers filling the full 576px display width
-- The app operates in three states: **idle/selection**, **ready**, and **playing** (described below)
+- The app operates in four states: **idle/selection**, **part selection**, **ready**, and **playing** (described below)
 
 ### Idle / selection state
 - On startup (and after a setlist completes), fetch the list of gigs from Supabase `gigs` table
 - Display gig names as items in the controls list; user scrolls and selects using the temple or ring gesture
 - The image containers show a welcome/instruction message or remain blank
 
-### Ready state
-- After the user selects a gig, fetch its ordered song list from `setlist_items` joined with `songs` (filter to songs with `scroll_url`, order by `position`)
-- Pre-load the first song's scroll PNG into the image containers as a preview
-- Controls list shows two items: "▶ Start" and "← Back to gigs"
-- The setlist does not begin scrolling until the user explicitly selects "▶ Start"
+### Part selection state
+- After the user selects a gig, fetch its ordered song list from `setlist_items` joined with `songs`
+- Collect all unique part labels across all songs in the setlist (from `songs.parts[].label`)
+- If only one part label exists across the whole setlist (or no song has multiple parts), skip this state and proceed directly to ready
+- Otherwise display the unique part labels as a controls list (e.g. "S", "A", "T", "B"); user selects their voice part
 - "← Back to gigs" returns to the idle/selection state
+- The selected part label is stored and used when resolving each song's scroll URL during playback
+- If a song has no part matching the selected label, fall back to `scroll_url` (legacy single-part field); if that is also null, skip the song
+
+### Ready state
+- After the user selects a part (or the part-selection state was skipped), resolve the scroll URL for the first song using the selected part label
+- Pre-load the first song's scroll PNG into the image containers as a preview
+- Controls list shows two items: "▶ Start" and "← Back"
+- The setlist does not begin scrolling until the user explicitly selects "▶ Start"
+- "← Back" returns to part selection (or to idle if part selection was skipped)
 
 ### Playing state
 - **Auto mode**: each tick advances the scroll by one full screen width (576 source pixels) and pushes three 192px-wide slices to the three image containers simultaneously; tick interval is derived from BPM + `beats_in_scroll` for accurate musical timing
@@ -39,13 +48,16 @@ The Even Hub SDK provides no raw tap/long-press API. All temple input fires `lis
 | Scroll right | 4 | `ImageContainerProperty` | 384, 188 | 192×100 |
 
 ### Controls list — idle/selection state (dynamic)
-List items are populated from the `gigs` table at runtime. Selecting a gig item transitions to ready state.
+List items are populated from the `gigs` table at runtime. Selecting a gig item transitions to part selection state.
+
+### Controls list — part selection state (dynamic)
+List items are the unique part labels collected from the setlist (e.g. `["S", "A", "T", "B"]`), plus a final "← Back to gigs" item. Selecting a part label transitions to ready state.
 
 ### Controls list — ready state
 | Index | Label | Action |
 |---|---|---|
 | 0 | ▶ Start | Begin playback of the selected gig from song 0 |
-| 1 | ← Back to gigs | Return to idle/selection state |
+| 1 | ← Back | Return to part selection (or idle if part selection was skipped) |
 
 ### Controls list — playing state
 | Index | Label | Action |
@@ -100,18 +112,25 @@ Deployment is fully automated via `.github/workflows/deploy-glasses.yml`:
 - [ ] Populate controls list (`updateListData`) with gig names; set `itemCount` to number of gigs
 - [ ] `onEvenHubEvent` in idle state: selecting a list item triggers `selectGig(gigId)`
 
+### Part selection state
+- [ ] `selectGig(gigId)`: fetch `setlist_items` JOIN `songs` for the gig, order by `position` → store as `setlistSongs[]`
+- [ ] Collect unique part labels from `setlistSongs` (union of `song.parts.map(p => p.label)` across all songs)
+- [ ] If 0 or 1 unique labels: skip part selection, set `selectedPart = labels[0] ?? null`, proceed to `enterReady()`
+- [ ] Otherwise: `updateListData([...labels, '← Back to gigs'])`; set state to PART_SELECT
+- [ ] `onEvenHubEvent` in PART_SELECT: index for a label → `selectedPart = label`, call `enterReady()`; index for "← Back" → return to IDLE
+
 ### Ready state
-- [ ] `selectGig(gigId)`: fetch `setlist_items` JOIN `songs` for the gig, filter `scroll_url IS NOT NULL`, order by `position` → store as `setlistSongs[]`
-- [ ] Pre-fetch and decode first song's scroll PNG; push to image containers as a static preview
-- [ ] Update controls list to ready state (2 items: "▶ Start", "← Back to gigs")
-- [ ] `onEvenHubEvent` in ready state: index 0 → `startPlayback(setlistSongs, 0)`; index 1 → return to idle state
+- [ ] `enterReady()`: resolve scroll URL for first song using `selectedPart` (match `song.parts.find(p => p.label === selectedPart)?.imageUrl ?? song.scroll_url`)
+- [ ] Pre-fetch and decode resolved scroll PNG; push to image containers as a static preview
+- [ ] Update controls list to ready state (2 items: "▶ Start", "← Back")
+- [ ] `onEvenHubEvent` in ready state: index 0 → `playSetlistFrom(setlistSongs, 0)`; index 1 → return to PART_SELECT (or IDLE if skipped)
 
 ### Playing state
 - [x] `fetchScrollPixels(url)` — download scroll PNG, decode to raw RGBA pixel buffer via canvas
 - [x] `extractSlice(pixels, w, h, xOffset)` — crop a 192×100 slice
 - [x] `sendFrame()` — extract 3 slices at `xOffset`, `xOffset+192`, `xOffset+384`, push to LEFT/MID/RIGHT containers in parallel
 - [x] `scheduleTick()` — compute interval from BPM + `beats_in_scroll`, call `sendFrame`, advance `xOffset`, recurse
-- [ ] `playSetlistFrom(songs, index)` — load song at `index`, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted return to idle state
+- [ ] `playSetlistFrom(songs, index)` — resolve scroll URL for `songs[index]` using `selectedPart`; load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted return to idle state
 - [x] `onEvenHubEvent` handler: Play / Pause / +BPM / -BPM
 - [ ] `onEvenHubEvent`: → Step (index 4) — advance `xOffset` by `PIXELS_PER_BEAT`, clamp, call `sendFrame()`
 - [ ] `onEvenHubEvent`: ← Back (index 5) — retreat `xOffset` by `PIXELS_PER_BEAT`, clamp at 0, call `sendFrame()`

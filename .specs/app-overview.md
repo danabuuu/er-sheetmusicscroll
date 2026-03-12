@@ -44,7 +44,7 @@ All three parts share the **same Supabase project** for data and storage.
 - SDK bridge: `import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'`
 - Display SDK coordinate space: **576×288** (physical resolution is higher)
 - Layout: controls list (`ListContainerProperty`, 576×160 at top), three image containers side-by-side (192×100 each, total 576×100 at bottom)
-- **App states**: idle/selection (shows list of gigs) → ready (gig selected, first song loaded, waiting to start) → playing (auto or manual scroll)
+- **App states**: idle/selection → part selection (pick voice part if setlist has multiple) → ready (waiting to start) → playing (auto or manual scroll)
 - `VITE_ADMIN_URL` env var points to the Vercel-hosted Processing API URL (e.g. `https://er-sheetmusicscroll.vercel.app`)
 - Test locally with Vite dev server: `vite --host 0.0.0.0 --port 5173`; test with `evenhub-simulator [VITE_URL]`
 
@@ -72,7 +72,7 @@ Current schema (Postgres via Supabase):
 
 | Table | Columns | Notes |
 |-------|---------|-------|
-| `songs` | `id`, `title`, `artist`, `tempo`, `scroll_url`, `beats_in_scroll`, `created_at` | `artist` optional. `scroll_url` points to a PNG in `scrolls` bucket. Will gain a `parts` JSONB column for multi-voice support. |
+| `songs` | `id`, `title`, `artist`, `tempo`, `scroll_url`, `beats_in_scroll`, `parts`, `created_at` | `artist` optional. `scroll_url` is the legacy single-part URL (fallback). `parts` is a JSONB array `[{ label: string, imageUrl: string }]` for multi-voice support (e.g. S/A/T/B). |
 | `now_playing` | `id` (always 1), `song_id`, `gig_id` | Written by the glasses when a gig or song is selected; readable externally. |
 | `gigs` | `id`, `name`, `venue`, `date`, `time`, `notes` | Created and managed by BandTracker. |
 | `setlist_items` | `gig_id`, `song_id`, `position` | Ordered list of songs per gig. Created and managed by BandTracker. |
