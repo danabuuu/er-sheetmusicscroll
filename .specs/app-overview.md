@@ -103,13 +103,29 @@ Current schema (Postgres via Supabase):
 - [ ] Add `parts` JSONB column to `songs` for multi-voice support; update `/api/build` for serial per-part workflow
 
 ### Bandtracker — [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker)
-- [ ] Add PDF upload page: file picker → `POST {SCROLL_API_URL}/api/analyze` → redirect to staff selection
-- [ ] Add staff selection page: calls `GET {SCROLL_API_URL}/api/pages/[jobId]/[pageIndex]`, `POST /api/detect-staff`, `POST /api/build`
-- [ ] Add song library home page: list all saved songs with Queue (→ `PUT /api/now-playing`) and delete actions; "Upload new PDF" button
-- [ ] Add back-navigation: upload page → library, select page → library; post-save "Upload another" button
-- [ ] Add setlist creation UI: pick songs, drag to reorder, save to Supabase — see setlist-playback.md
-- [ ] Add now-playing control: pick song/setlist, calls `PUT {SCROLL_API_URL}/api/now-playing`
+
+> **Porting note**: The admin UI (`admin/app/upload/page.tsx` and `admin/app/select/[jobId]/`) is the reference implementation to port. Remove those pages from `admin/` only after Bandtracker has parity.
+
+#### Prerequisites (Processing API must be ready first)
+- [ ] `POST /api/analyze` stores job files in Supabase Storage (not local disk) — required on Vercel
+- [ ] `POST /api/songs` — create new song (title, artist, tempo)
+- [ ] `PATCH /api/songs/[id]` — update title, tempo, parts
+- [ ] `DELETE /api/songs/[id]`
+- [ ] `POST /api/build` extended to accept `partLabel` and store result in `songs.parts` JSONB
+
+#### Bandtracker pages to build
+- [ ] **Upload page** (`/upload`): PDF file picker → `POST {SCROLL_API_URL}/api/analyze` on submit → redirect to `/select/[jobId]`
+- [ ] **Staff selection page** (`/select/[jobId]`): fetch page images from `GET .../api/pages/[jobId]/[pageIndex]`; render each page with SVG overlay of staff bounding boxes; clicking a box selects it (yellow); clicking outside calls `POST .../api/detect-staff` (green/dashed outline on success, size-estimated fallback on 404)
+- [ ] Staff selection: sidebar shows ordered scroll list, each entry removable; progress indicator "N / total systems selected"; BPM + label fields; "Build Scroll Image" button
+- [ ] **Multi-part serial workflow**: after build + confirm, "Save Part & Add Another" clears selections and loops; "Save Part & Finish" proceeds to song metadata form; accumulates `parts: SongPart[]`
+- [ ] **Song metadata form**: title, artist (optional), BPM — saves via `POST /api/songs` (new song) or `PATCH /api/songs/[id]` (existing)
+- [ ] **Library home page** (`/`): list all songs with part labels, edit/delete actions, "Upload new PDF" button
+- [ ] Back-navigation throughout: upload → library, select → library, post-save "Upload another" button
 - [ ] `SCROLL_API_URL` env var pointing to the Vercel Processing API
+
+#### Cleanup (after Bandtracker has parity)
+- [ ] Remove `admin/app/upload/` and `admin/app/select/` UI pages from this repo
+- [ ] Remove `admin/app/globals.css` and `admin/app/layout.tsx` if no longer needed
 
 ### Glasses App — this repo `glasses/` → deployed to GitHub Pages
 - [x] Scaffold Even Hub app with `index.html` + `Main.ts` + Vite config (`glasses/`)

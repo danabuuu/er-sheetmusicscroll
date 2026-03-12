@@ -67,7 +67,8 @@ Upload PDF
 - [ ] Progress indicator showing "N / total staves selected"
 - [ ] Library home page (`/`): list songs with Queue and delete actions; "Upload new PDF" button
 - [ ] Back-navigation: upload page → library, select page → library; post-save "Upload another" button
-- [ ] **Multi-part serial workflow** (future): label field, "Save Part & Add Another" / "Save Part & Finish" buttons; accumulate `parts: SongPart[]` and save to songs DB
+- [ ] **Multi-part serial workflow**: label field (pre-filled S→A→T→B), "Save Part & Add Another" / "Save Part & Finish" buttons; accumulate `parts: SongPart[]` and store via `PATCH /api/songs/[id]` or `POST /api/songs` with parts array
+- [ ] `/api/build` update: accept optional `{ partLabel: string }` param; store image URL into `songs.parts` JSONB instead of (or in addition to) `scroll_url`
 - [ ] `POST /api/songs` for creating a new song inline — blocked on endpoint creation
 
 ## Open Questions
