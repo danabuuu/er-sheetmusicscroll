@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    externalDir: true,
-  },
   // @lib/* path alias is resolved via tsconfig.json paths — no webpack/turbopack alias needed
   turbopack: {},
   async headers() {

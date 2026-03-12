@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@lib/*": ["../lib/*"]
+      "@lib/*": ["./lib/*"]
     }
   },
   "include": [
@@ -29,8 +29,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts",
-    "../lib/**/*.ts"
+    "**/*.mts"
   ],
   "exclude": ["node_modules"]
 }
