@@ -1,14 +1,15 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
+  // @lib/* path alias is resolved via tsconfig.json paths — no webpack/turbopack alias needed
+  turbopack: {},
   async headers() {
     return [
       {
-        // Allow the glasses app (any local origin) to call all API routes
+        // Allow cross-origin requests from Bandtracker (GitHub Pages) and the glasses app
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -17,14 +18,6 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
-  },
-  webpack(config) {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      // Resolves the @lib/* path alias used in API routes (e.g. @lib/staff-extraction)
-      '@lib': path.resolve(__dirname, '../lib'),
-    };
-    return config;
   },
 };
 

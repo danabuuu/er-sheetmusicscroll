@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const ALLOWED_ORIGINS = [
   'https://danabuuu.github.io',
-  // Allow the glasses app (same Render host or GitHub Pages — added here when known)
+  // Allow the glasses app (GitHub Pages — add its origin here when deployed)
 ];
 
 // In development also allow localhost origins
@@ -15,7 +15,7 @@ function getAllowedOrigin(origin: string | null): string | null {
   return null;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const origin = request.headers.get('origin');
   const allowedOrigin = getAllowedOrigin(origin);
 
