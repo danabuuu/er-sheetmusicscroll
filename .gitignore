@@ -7,9 +7,32 @@ node_modules/
 # Test/scratch PDFs in lib
 lib/staff-extraction/*.pdf
 
+# Build outputs
+dist/
+out/
+build/
+.next/
+
+# TypeScript
+*.tsbuildinfo
+
 # macOS
 .DS_Store
 
-# Env files
-.env*
+# Environment files
+.env
+.env.*
 !.env.example
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Vite
+*.local
+
+# Misc
+*.pem
+.vercel
