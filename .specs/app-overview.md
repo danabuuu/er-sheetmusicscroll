@@ -1,15 +1,17 @@
 # Feature: ER Sheet Music Scroll — App Overview
 
 ## Requirements
-- User can upload a PDF of sheet music to a web app
+- User can upload a PDF of sheet music and process it within Bandtracker (which calls the Vercel API)
 - User can isolate a specific staff/voice line (e.g. Tenor) from the PDF automatically, with the ability to manually override the selection
-- User can attach metadata to a song: title, optional artist, and playback tempo (BPM)
+- User can process the same PDF multiple times for different voice parts (e.g. Tenor, Bass), each producing a separate scroll image
+- User can attach metadata to a song: title, optional artist, playback tempo (BPM), and total beats in the scroll image
 - User can rename or delete songs in their library
-- User can create a setlist by selecting songs and ordering them
-- User can choose a song or setlist to play back
-- During playback, the music scrolls horizontally across the Even Realities G2 glasses display at the configured tempo, delivered via Even Hub (the app is a website rendered onto the glasses through the Even Realities mobile app)
+- User can create setlists (gigs) in Bandtracker by selecting songs and ordering them
+- On the glasses, the user browses available setlists (gigs), selects one, and waits to start until they press a button
+- During playback, the music scrolls horizontally across the Even Realities G2 glasses display; the user can choose auto-advance (driven by BPM + beats timing) or manual step-through (forward/back via ring or temple gesture)
 - User can pause playback and adjust tempo on the fly during a session
-- Scroll image can display 1 or 2 staff rows stacked vertically, allowing 2 lines of music to be visible at once
+- When one song ends, the next song in the setlist loads and plays automatically
+- Scroll image displays 2 staff rows stacked vertically (one column = two systems), showing more music at once
 
 ## Architecture Notes
 
@@ -17,9 +19,9 @@
 
 | Part | Repo | Hosting | Tech | Purpose |
 |------|------|---------|------|---------|
-| **Bandtracker** | [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker) | GitHub Pages | Static site | All user-facing UI: PDF upload, staff selection, scroll building, song library, setlist builder, now-playing control |
+| **Bandtracker** | [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker) | GitHub Pages | Static site | Setlist/gig management **+** score processing UI: PDF upload, staff selection, scroll building, song library |
 | **Processing API** | this repo (`admin/`) | Vercel | Next.js API routes only — no UI pages | Server-side PDF rendering, staff detection, scroll image building; exposes REST endpoints called by Bandtracker |
-| **Glasses app** | this repo (`glasses/`) | GitHub Pages | Vite + Even Hub SDK | Even Hub display client — scrolls sheet music on G2 glasses |
+| **Glasses app** | this repo (`glasses/`) | GitHub Pages | Vite + Even Hub SDK | Even Hub display client — browse setlists, wait to start, then scroll sheet music on G2 glasses |
 
 All three parts share the **same Supabase project** for data and storage.
 
@@ -42,6 +44,7 @@ All three parts share the **same Supabase project** for data and storage.
 - SDK bridge: `import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk'`
 - Display SDK coordinate space: **576×288** (physical resolution is higher)
 - Layout: controls list (`ListContainerProperty`, 576×160 at top), three image containers side-by-side (192×100 each, total 576×100 at bottom)
+- **App states**: idle/selection (shows list of gigs) → ready (gig selected, first song loaded, waiting to start) → playing (auto or manual scroll)
 - `VITE_ADMIN_URL` env var points to the Vercel-hosted Processing API URL (e.g. `https://er-sheetmusicscroll.vercel.app`)
 - Test locally with Vite dev server: `vite --host 0.0.0.0 --port 5173`; test with `evenhub-simulator [VITE_URL]`
 
@@ -62,15 +65,17 @@ sudo npm install -g vite@latest
 
 ### Data Fetching
 - **Bandtracker** → calls Processing API (Vercel) for all PDF/image operations; reads/writes Supabase directly for song library and setlist data
-- **Glasses app** → calls `GET /api/now-playing` on the Processing API to get the current song and `scroll_url`; fetches the scroll PNG from Supabase Storage directly
+- **Glasses app** → reads `gigs`/`setlist_items`/`songs` from Supabase directly for gig selection and playback; fetches scroll PNGs from Supabase Storage; optionally writes selected `gig_id` to `now_playing` for external visibility
 
 ### Database (Supabase)
 Current schema (Postgres via Supabase):
 
 | Table | Columns | Notes |
 |-------|---------|-------|
-| `songs` | `id`, `title`, `artist`, `tempo`, `scroll_url`, `beats_in_scroll`, `created_at` | `artist` is optional. `scroll_url` points to a PNG in the `scrolls` Supabase Storage bucket. Will gain a `parts` JSONB column for multi-voice support. |
-| `now_playing` | `id` (always 1), `song_id` | Single-row table. `GET /api/now-playing` returns the current song; `PUT /api/now-playing { songId }` sets it. |
+| `songs` | `id`, `title`, `artist`, `tempo`, `scroll_url`, `beats_in_scroll`, `created_at` | `artist` optional. `scroll_url` points to a PNG in `scrolls` bucket. Will gain a `parts` JSONB column for multi-voice support. |
+| `now_playing` | `id` (always 1), `song_id`, `gig_id` | Written by the glasses when a gig or song is selected; readable externally. |
+| `gigs` | `id`, `name`, `venue`, `date`, `time`, `notes` | Created and managed by BandTracker. |
+| `setlist_items` | `gig_id`, `song_id`, `position` | Ordered list of songs per gig. Created and managed by BandTracker. |
 
 ### Other
 - **Staff isolation**: Automatic detection of staff rows from the PDF, with per-system override capability
@@ -109,14 +114,16 @@ Current schema (Postgres via Supabase):
 ### Glasses App — this repo `glasses/` → deployed to GitHub Pages
 - [x] Scaffold Even Hub app with `index.html` + `Main.ts` + Vite config (`glasses/`)
 - [x] Install Even Hub SDK and wire up `waitForEvenAppBridge`
-- [x] On startup, call `createStartUpPageContainer` with three `ImageContainerProperty` (192×100 each, side-by-side at x=0/192/384, y=188) and one `ListContainerProperty` (▶ Play / ⏸ Pause / +BPM / -BPM / → Step / ← Back at y=0) with `isEventCapture: 1`
-- [x] Poll `GET /api/now-playing` on the Vercel API for the current song; fetch scroll PNG and decode into pixel slices via `OffscreenCanvas`
-- [x] Implement playback loop: on each tick (interval derived from BPM), crop next three 192px-wide slices and push to the three image containers
-- [x] Handle `onEvenHubEvent` listEvent: Play / Pause / +BPM / -BPM via temple gesture; → Step / ← Back for manual step-through mode
-- [x] When scroll ends, poll for next song and restart loop
+- [x] `createStartUpPageContainer` with three `ImageContainerProperty` (192×100 each, side-by-side) and one `ListContainerProperty` with `isEventCapture: 1`
+- [ ] **Idle/selection state**: on startup, fetch gig list from Supabase `gigs` table; populate controls list dynamically with gig names; user selects via temple gesture
+- [ ] **Ready state**: after gig selected, fetch `setlist_items` + `songs` for that gig; pre-load first song's scroll PNG into image containers; show "▶ Start" and "← Back" in controls list
+- [ ] **Playing state**: controls list shows ▶ Play / ⏸ Pause / +BPM / -BPM / → Step / ← Back
+- [x] Auto-play tick loop: interval from BPM + `beats_in_scroll`, advance 576px per tick, push 3 slices to image containers
+- [x] Manual step: → Step advances 576px, ← Back retreats 576px (clamp at 0 and scroll width)
+- [ ] Ring gesture: map ring push to → Step (forward one screen)
+- [ ] End of song: auto-load next song in setlist; when last song ends, return to idle/selection state
 - [x] Test in Even Hub Simulator and on real G2 hardware
 - [ ] Configure GitHub Actions to build `glasses/` and deploy to GitHub Pages on push to `main`
-- [ ] Wire setlist playback: ordered queue of songs, auto-advance
 
 ## Open Questions
 - ~~The root `package.json` currently has `@evenrealities/even_hub_sdk` installed at the workspace root. Move it into `glasses/` when that folder is scaffolded.~~ ✅ Done — SDK is now only in `glasses/package.json`.

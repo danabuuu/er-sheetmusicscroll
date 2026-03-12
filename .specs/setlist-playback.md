@@ -2,9 +2,9 @@
 
 ## Background
 
-BandTracker already manages setlists ("gigs") in the same Supabase project (`yhchfhhdrfcotlvyoogz`). The glasses app shares the same `songs` table, so `song_id` values are directly compatible.
+BandTracker manages setlists ("gigs") in the same Supabase project (`yhchfhhdrfcotlvyoogz`). The glasses app shares the `songs` table, so `song_id` values are directly compatible.
 
-**Setlist selection happens on the phone/admin** (not on the glasses). The user picks a gig in the admin app, which writes the `gig_id` to `now_playing`. The glasses app then fetches the ordered song list for that gig and plays them sequentially — no changes needed to the glasses list UI.
+**Setlist selection happens on the glasses** (not in admin). The user picks a gig directly from the Even Hub glasses app. Bandtracker's only role here is creating and managing gigs — it never pushes a gig to the glasses.
 
 ## BandTracker Schema (confirmed from source)
 
@@ -16,83 +16,79 @@ songs          { id, title, tempo, scroll_url, beats_in_scroll, ... }  ← share
 
 ## Requirements
 
-- The admin app shows a "Queue Gig" UI: a dropdown of all gigs from BandTracker, and a button that writes the chosen `gig_id` to `now_playing`
-- The glasses app, when it detects a `gig_id` in `now_playing`, fetches the gig's song list (ordered by `position`, filtered to songs with `scroll_url`) and plays them sequentially
-- Songs play sequentially: when a scroll image ends the app advances to the next song in the list without re-polling `now_playing`
-- Playback controls (Play / Pause / +BPM / -BPM) continue to work exactly as they do now
-- When the last song ends, playback stops and the status shows "Setlist complete"
-- Single-song mode (current behaviour, `song_id` only, no `gig_id`) continues to work as a fallback
-
-## Data Model Changes
-
-### `now_playing` table
-Add a nullable `gig_id` column:
-```sql
-ALTER TABLE now_playing ADD COLUMN gig_id integer;
-```
-When a gig is queued: `gig_id` is set. When a single song is queued: `gig_id` is null, `song_id` is set (existing behaviour unchanged).
+- The glasses app fetches all available gigs from Supabase on startup and displays them as a selectable list
+- The user picks a gig via the glasses controls (temple/ring gesture); the setlist is loaded and a preview of the first song is shown
+- The setlist does **not** start playing until the user explicitly confirms ("▶ Start")
+- Songs play sequentially: when one scroll ends, the next loads automatically without any admin input
+- Playback controls (Play / Pause / +BPM / -BPM / → Step / ← Back) work as described in `glasses-playback.md`
+- When the last song ends the app returns to the gig selection state and shows "Setlist complete"
+- Songs without a `scroll_url` are skipped
 
 ## UX Flow
 
 ```
-Admin / phone
-  User visits admin app → "Queue" section shows list of gigs from BandTracker
-  User picks a gig → PUT /api/now-playing { gigId: 3 }
-    → upserts now_playing row: gig_id=3, song_id=null
+Glasses app — idle/selection state
+  On startup: query Supabase `gigs` table (ordered by date)
+  Controls list shows gig names; user scrolls + selects via temple or ring
+  → selectGig(gigId)
 
-Glasses app (polling loop)
-  fetchNowPlaying() returns { gig_id: 3, song_id: null }
-  → fetch GET /api/gigs/3/songs  (ordered, scroll_url only)
-  → play songs[0], songs[1], … songs[N]
-  → on each song end: advance index; if exhausted → "Setlist complete", stop
+Glasses app — ready state
+  Query `setlist_items` JOIN `songs` for gigId; filter scroll_url IS NOT NULL; order by position
+  Pre-fetch first song scroll PNG → show preview in image containers
+  Controls list: ["▶ Start", "← Back to gigs"]
+  User selects "▶ Start" → begin playback from song 0
+  User selects "← Back to gigs" → return to idle state
 
-  fetchNowPlaying() returns { gig_id: null, song_id: 7 }  ← existing single-song path
-  → play that one song (current behaviour)
+Glasses app — playing state
+  playSetlistFrom(songs, 0) → play songs[0], on end call playSetlistFrom(songs, 1)
+  When exhausted: show "Setlist complete", return to idle state
 ```
 
-## Admin API Routes (new)
+## Data Access
 
-### `GET /api/gigs`
-Returns all gigs ordered by date descending:
-```json
-[{ "id": 3, "name": "Sunday Service", "date": "2026-03-09" }, ...]
+The glasses app queries Supabase directly (same credential pattern as existing `now_playing` fetch):
+
+```ts
+// Fetch all gigs
+supabase.from('gigs').select('id, name, venue, date').order('date', { ascending: false })
+
+// Fetch ordered songs for a gig
+supabase.from('setlist_items')
+  .select('position, songs(id, title, tempo, scroll_url, beats_in_scroll)')
+  .eq('gig_id', gigId)
+  .not('songs.scroll_url', 'is', null)
+  .order('position')
 ```
 
-### `GET /api/gigs/[id]/songs`
-Joins `setlist_items` → `songs`, filters `scroll_url IS NOT NULL`, orders by `position`:
-```json
-[{ "id": 7, "title": "Song A", "tempo": 120, "scroll_url": "...", "beats_in_scroll": 96 }, ...]
-```
+## Optional: API routes
 
-### `PUT /api/now-playing` (extend existing)
-Extend to accept `gigId?: number` (sets `gig_id`, clears `song_id`) or `songId?: number` (existing, clears `gig_id`):
-```json
-{ "gigId": 3 }   // queue a gig
-{ "songId": 7 }  // queue a single song (existing)
+`GET /api/gigs` and `GET /api/gigs/[id]/songs` may be implemented as server-side alternatives to direct Supabase access (useful if Supabase credentials should not appear in the client bundle). These are not required for the initial implementation.
+
+## Optional: `now_playing` visibility
+
+The glasses may optionally write the active `gig_id` and `song_id` to the `now_playing` table as playback advances, so external tools (e.g. Bandtracker) can display what is currently playing. This is not required for playback to function.
+
+If implemented, add a nullable `gig_id` column:
+```sql
+ALTER TABLE now_playing ADD COLUMN gig_id integer;
 ```
 
 ## Tasks
 
-### Database
-- [ ] Add nullable `gig_id integer` column to `now_playing` in Supabase
-
-### Admin API
-- [ ] `GET /api/gigs` — query `gigs` table, return `id`, `name`, `date` ordered by `date` desc
-- [ ] `GET /api/gigs/[id]/songs` — join `setlist_items` → `songs` on `song_id`, filter `scroll_url IS NOT NULL`, order by `setlist_items.position`
-- [ ] `PUT /api/now-playing` — extend to accept `gigId` param; upsert `gig_id` and clear `song_id` (or vice versa)
-- [ ] Extend `GET /api/now-playing` response to include `gig_id`
-
-### Admin UI
-- [ ] Add "Queue Gig" section to the admin home/library page
-- [ ] Fetch gig list from `GET /api/gigs` on load; show as a dropdown or list
-- [ ] "Queue" button next to each gig calls `PUT /api/now-playing { gigId }` and shows a confirmation
-
 ### Glasses App (`glasses/Main.ts`)
-- [ ] Update `Song` / `NowPlaying` type to include optional `gig_id`
-- [ ] In `loadAndPlay()`: after fetching `now_playing`, if `gig_id` is set → call `startGigPlayback(gigId)` instead of the single-song path
-- [ ] `fetchGigSongs(gigId)` — `GET /api/gigs/[id]/songs`, return ordered array
-- [ ] `startGigPlayback(gigId)` — fetch songs, then call `playSetlistFrom(songs, 0)`
-- [ ] `playSetlistFrom(songs, index)` — load and play `songs[index]`; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted set status "Setlist complete" and stop
+- [ ] `fetchGigs()` — query Supabase `gigs` table, return `{ id, name, date }[]` ordered by date desc
+- [ ] `fetchSetlistSongs(gigId)` — join `setlist_items` → `songs`, filter `scroll_url IS NOT NULL`, order by `position`; return `Song[]`
+- [ ] Implement `AppState` enum: `IDLE | READY | PLAYING`
+- [ ] IDLE: call `fetchGigs()` on entry; `updateListData(gigNames)` on controls list
+- [ ] IDLE `onEvenHubEvent`: selecting index N → `selectGig(gigs[N].id)`
+- [ ] `selectGig(gigId)`: fetch songs, pre-load first scroll PNG, transition to READY state; `updateListData(['▶ Start', '← Back to gigs'])`
+- [ ] READY `onEvenHubEvent`: index 0 → `playSetlistFrom(songs, 0)`; index 1 → return to IDLE
+- [ ] `playSetlistFrom(songs, index)` — load `songs[index]`, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted: set status "Setlist complete", return to IDLE
+- [ ] PLAYING `onEvenHubEvent`: Play / Pause / +BPM / -BPM / → Step / ← Back (see `glasses-playback.md`)
+
+### Optional
+- [ ] Write active `gig_id` + `song_id` to `now_playing` during playback for external visibility
+- [ ] `GET /api/gigs` and `GET /api/gigs/[id]/songs` Admin API routes as server-side alternative
 
 ## Open Questions
 - None — schema confirmed, approach agreed.
