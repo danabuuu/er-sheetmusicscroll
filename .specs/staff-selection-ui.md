@@ -66,17 +66,22 @@ select.html?job=X&songId=X
 
 ### Bandtracker frontend (danabuuu/BandTracker)
 - [x] `upload.html`: PDF file picker → `POST {SCROLL_API_URL}/api/analyze` → redirect to `select.html?job=X&songId=X`
-- [ ] `upload.html`: accept `?songId=X` — when present, skip the song picker and show song title read-only
+- [x] `upload.html`: accept `?songId=X` — when present, skip the song picker and show song title read-only
+- [x] `upload.html`: pass `returnTo` and `gigId` URL params through sessionStorage so select.html can return to the right place
+- [x] `upload.html`: pass `beats_in_scroll` from song metadata through sessionStorage so select.html can pre-fill Bars field
 - [x] `select.html`: fetch page images; SVG overlay; staff selection; padding preview dotted lines
 - [x] `select.html`: clicking outside detected boxes calls `POST /api/detect-staff` (green dashed); fallback to size-estimated box on 404
 - [x] `select.html`: sidebar — ordered scroll list, each entry removable; BPM + label + measures fields
-- [ ] `select.html`: **"Build & Finish"** navigates to `index.html` after a successful build
-- [ ] `select.html`: **"Build & Add Part"** clears selections and stays on the page (true loop), shows a confirmation
+- [x] `select.html`: **"Build & Finish"** navigates to `index.html` after a successful build (or back to the originating setlist if `returnTo=setlist`)
+- [x] `select.html`: **"Build & Add Part"** clears selections and stays on the page (true loop)
 - [x] `select.html`: padding preview dotted lines update live as sliders change
-- [ ] `index.html`: song card shows `tempo`, `beats_in_scroll`, and the list of existing `parts` (label badges + thumbnail previews)
-- [ ] `index.html`: song edit form includes editable `tempo` and `measures` fields (saved via Supabase update)
-- [ ] `index.html`: "Create Strip" button on each song card → `upload.html?songId=<id>`
-- [ ] `index.html`: setlist view shows strip indicator (colored badges) for each song in the setlist — e.g. green pill = has strips, grey = missing
+- [x] `select.html`: BPM, bars, and beats/bar pre-filled from song metadata passed via sessionStorage
+- [x] `select.html`: dismiss (×) button on each auto-detected stave box to hide bad detections without blocking manual clicks
+- [x] `select.html`: click a scroll-order entry to select it; ↑↓ nudge buttons appear on the selected entry only; nudge moves crop 1 px per click; padding preview updates immediately
+- [x] `index.html`: song card shows `tempo`, `beats_in_scroll`, and the list of existing `parts` (label badges + small thumbnail previews, clickable to open imageUrl)
+- [x] `index.html`: song edit form includes editable `tempo` and `measures` fields (saved via Supabase update)
+- [x] `index.html`: "Create Strip" button on each song card → `upload.html?songId=<id>`
+- [x] `index.html`: setlist view shows strip indicator (green badges) for each song in the setlist; all songs always show a `+ Strip` link → `upload.html?songId=X&returnTo=setlist&gigId=Y`
 
 ## Open Questions
 - None currently.
