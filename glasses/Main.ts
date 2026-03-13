@@ -25,6 +25,7 @@ import {
   CreateStartUpPageContainer,
   RebuildPageContainer,
   ImageRawDataUpdate,
+  OsEventTypeList,
 } from '@evenrealities/even_hub_sdk';
 
 // ─── HMR cleanup ────────────────────────────────────────────────────────────
@@ -488,7 +489,16 @@ async function main(): Promise<void> {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
     if (!event.listEvent) return;
     const rawIdx = event.listEvent.currentSelectItemIndex ?? -1;
+    const isDoubleClick = event.listEvent.eventType === OsEventTypeList.DOUBLE_CLICK_EVENT;
 
+    // Double-click steps back one frame in all non-idle states
+    if (isDoubleClick) {
+      if (appState === AppState.PLAYING || appState === AppState.READY) {
+        xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
+        void sendFrame();
+      }
+      return;
+    }
     // Update focus tracking on scroll events; use tracked index on click
     if (rawIdx >= 0) focusedIdx = rawIdx;
     const idx = rawIdx >= 0 ? rawIdx : focusedIdx;
