@@ -108,31 +108,31 @@ Deployment is fully automated via `.github/workflows/deploy-glasses.yml`:
 - [x] `createStartUpPageContainer` with 3 image containers + 1 controls list container
 
 ### Idle / selection state
-- [ ] On startup, query Supabase `gigs` table for all gigs (ordered by date desc)
-- [ ] Populate controls list (`updateListData`) with gig names; set `itemCount` to number of gigs
-- [ ] `onEvenHubEvent` in idle state: selecting a list item triggers `selectGig(gigId)`
+- [x] On startup, query Supabase `gigs` table for all gigs (ordered by date desc)
+- [x] Populate controls list (`updateListData`) with gig names; set `itemCount` to number of gigs
+- [x] `onEvenHubEvent` in idle state: selecting a list item triggers `selectGig(gigId)`
 
 ### Part selection state
-- [ ] `selectGig(gigId)`: fetch `setlist_items` JOIN `songs` for the gig, order by `position` → store as `setlistSongs[]`
-- [ ] Collect unique part labels from `setlistSongs` (union of `song.parts.map(p => p.label)` across all songs)
-- [ ] If 0 or 1 unique labels: skip part selection, set `selectedPart = labels[0] ?? null`, proceed to `enterReady()`
-- [ ] Otherwise: `updateListData([...labels, '← Back to gigs'])`; set state to PART_SELECT
-- [ ] `onEvenHubEvent` in PART_SELECT: index for a label → `selectedPart = label`, call `enterReady()`; index for "← Back" → return to IDLE
+- [x] `selectGig(gigId)`: fetch `setlist_items` JOIN `songs` for the gig, order by `position` → store as `setlistSongs[]`
+- [x] Collect unique part labels from `setlistSongs` (union of `song.parts.map(p => p.label)` across all songs)
+- [x] If 0 or 1 unique labels: skip part selection, set `selectedPart = labels[0] ?? null`, proceed to `enterReady()`
+- [x] Otherwise: `updateListData([...labels, '← Back to gigs'])`; set state to PART_SELECT
+- [x] `onEvenHubEvent` in PART_SELECT: index for a label → `selectedPart = label`, call `enterReady()`; index for "← Back" → return to IDLE
 
 ### Ready state
-- [ ] `enterReady()`: resolve scroll URL for first song using `selectedPart` (match `song.parts.find(p => p.label === selectedPart)?.imageUrl ?? song.scroll_url`)
-- [ ] Pre-fetch and decode resolved scroll PNG; push to image containers as a static preview
-- [ ] Update controls list to ready state (2 items: "▶ Start", "← Back")
-- [ ] `onEvenHubEvent` in ready state: index 0 → `playSetlistFrom(setlistSongs, 0)`; index 1 → return to PART_SELECT (or IDLE if skipped)
+- [x] `enterReady()`: resolve scroll URL for first song using `selectedPart` (match `song.parts.find(p => p.label === selectedPart)?.imageUrl ?? song.scroll_url`)
+- [x] Pre-fetch and decode resolved scroll PNG; push to image containers as a static preview
+- [x] Update controls list to ready state (2 items: "▶ Start", "← Back")
+- [x] `onEvenHubEvent` in ready state: index 0 → `playSetlistFrom(setlistSongs, 0)`; index 1 → return to PART_SELECT (or IDLE if skipped)
 
 ### Playing state
 - [x] `fetchScrollPixels(url)` — download scroll PNG, decode to raw RGBA pixel buffer via canvas
 - [x] `extractSlice(pixels, w, h, xOffset)` — crop a 192×100 slice
 - [x] `sendFrame()` — extract 3 slices at `xOffset`, `xOffset+192`, `xOffset+384`, push to LEFT/MID/RIGHT containers in parallel
 - [x] `scheduleTick()` — compute interval from BPM + `beats_in_scroll`, call `sendFrame`, advance `xOffset`, recurse
-- [ ] `playSetlistFrom(songs, index)` — resolve scroll URL for `songs[index]` using `selectedPart`; load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted return to idle state
+- [x] `playSetlistFrom(songs, index)` — resolve scroll URL for `songs[index]` using `selectedPart`; load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted return to idle state
 - [x] `onEvenHubEvent` handler: Play / Pause / +BPM / -BPM
-- [ ] `onEvenHubEvent`: → Step (index 4) — advance `xOffset` by `PIXELS_PER_BEAT`, clamp, call `sendFrame()`
-- [ ] `onEvenHubEvent`: ← Back (index 5) — retreat `xOffset` by `PIXELS_PER_BEAT`, clamp at 0, call `sendFrame()`
+- [x] `onEvenHubEvent`: → Step (index 4) — advance `xOffset` by `PIXELS_PER_BEAT`, clamp, call `sendFrame()`
+- [x] `onEvenHubEvent`: ← Back (index 5) — retreat `xOffset` by `PIXELS_PER_BEAT`, clamp at 0, call `sendFrame()`
 - [ ] Ring gesture: confirm SDK event type; map to → Step action
 - [x] Cache-bust scroll image URL with `?t=Date.now()` to force re-fetch on re-build

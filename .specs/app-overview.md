@@ -114,14 +114,19 @@ Current schema (Postgres via Supabase):
 - [ ] `POST /api/build` extended to accept `partLabel` and store result in `songs.parts` JSONB
 
 #### Bandtracker pages to build
-- [ ] **Upload page** (`/upload`): PDF file picker → `POST {SCROLL_API_URL}/api/analyze` on submit → redirect to `/select/[jobId]`
-- [ ] **Staff selection page** (`/select/[jobId]`): fetch page images from `GET .../api/pages/[jobId]/[pageIndex]`; render each page with SVG overlay of staff bounding boxes; clicking a box selects it (yellow); clicking outside calls `POST .../api/detect-staff` (green/dashed outline on success, size-estimated fallback on 404)
-- [ ] Staff selection: sidebar shows ordered scroll list, each entry removable; progress indicator "N / total systems selected"; BPM + label fields; "Build Scroll Image" button
-- [ ] **Multi-part serial workflow**: after build + confirm, "Save Part & Add Another" clears selections and loops; "Save Part & Finish" proceeds to song metadata form; accumulates `parts: SongPart[]`
-- [ ] **Song metadata form**: title, artist (optional), BPM — saves via `POST /api/songs` (new song) or `PATCH /api/songs/[id]` (existing)
-- [ ] **Library home page** (`/`): list all songs with part labels, edit/delete actions, "Upload new PDF" button
-- [ ] Back-navigation throughout: upload → library, select → library, post-save "Upload another" button
-- [ ] `SCROLL_API_URL` env var pointing to the Vercel Processing API
+- [x] **Upload page** (`upload.html`): PDF file picker → `POST {SCROLL_API_URL}/api/analyze` on submit → redirect to `select.html?job=X&songId=X`
+- [x] **Upload page**: accept `?songId=X` — when present, skip the song picker; show song name read-only
+- [x] **Staff selection page** (`select.html`): fetch page images; render each page with SVG overlay of staff bounding boxes; clicking a box selects it; clicking outside calls `POST .../api/detect-staff` (green/dashed outline on success, size-estimated fallback on 404)
+- [x] Staff selection: sidebar shows ordered scroll list, each entry removable; BPM, measures, label fields; dotted-line padding preview
+- [x] **"Build & Finish"**: build scroll, save part, redirect to `index.html`
+- [ ] **"Build & Add Part"**: build scroll, save part, clear selections, stay on page (true loop)
+- [x] Song metadata (BPM, measures) on select page; also editable from song library (see below)
+- [x] **Library home page** (`index.html`): list all songs with edit/delete; gigs + setlist tab
+- [x] **Song card**: show existing `parts` strips as label badges + small thumbnail previews; show `tempo` and `beats_in_scroll` values
+- [x] **Song edit form**: add editable `tempo` and `measures` (beats_in_scroll) fields; saved via Supabase update
+- [x] **"Create Strip" button** on each song card → opens `upload.html?songId=<id>`
+- [x] **Setlist view**: for each song in a setlist, show a strip-status indicator (green pill = has strips, grey = none)
+- [x] Back-navigation throughout: upload → library, select → library
 
 #### Cleanup (after Bandtracker has parity)
 - [ ] Remove `admin/app/upload/` and `admin/app/select/` UI pages from this repo
@@ -131,13 +136,13 @@ Current schema (Postgres via Supabase):
 - [x] Scaffold Even Hub app with `index.html` + `Main.ts` + Vite config (`glasses/`)
 - [x] Install Even Hub SDK and wire up `waitForEvenAppBridge`
 - [x] `createStartUpPageContainer` with three `ImageContainerProperty` (192×100 each, side-by-side) and one `ListContainerProperty` with `isEventCapture: 1`
-- [ ] **Idle/selection state**: on startup, fetch gig list from Supabase `gigs` table; populate controls list dynamically with gig names; user selects via temple gesture
-- [ ] **Ready state**: after gig selected, fetch `setlist_items` + `songs` for that gig; pre-load first song's scroll PNG into image containers; show "▶ Start" and "← Back" in controls list
-- [ ] **Playing state**: controls list shows ▶ Play / ⏸ Pause / +BPM / -BPM / → Step / ← Back
+- [x] **Idle/selection state**: on startup, fetch gig list from Supabase `gigs` table; populate controls list dynamically with gig names; user selects via temple gesture
+- [x] **Ready state**: after gig selected, fetch `setlist_items` + `songs` for that gig; pre-load first song's scroll PNG into image containers; show "▶ Start" and "← Back" in controls list
+- [x] **Playing state**: controls list shows ▶ Play / ⏸ Pause / +BPM / -BPM / → Step / ← Back
 - [x] Auto-play tick loop: interval from BPM + `beats_in_scroll`, advance 576px per tick, push 3 slices to image containers
 - [x] Manual step: → Step advances 576px, ← Back retreats 576px (clamp at 0 and scroll width)
 - [ ] Ring gesture: map ring push to → Step (forward one screen)
-- [ ] End of song: auto-load next song in setlist; when last song ends, return to idle/selection state
+- [x] End of song: auto-load next song in setlist; when last song ends, return to idle/selection state
 - [x] Test in Even Hub Simulator and on real G2 hardware
 - [ ] Configure GitHub Actions to build `glasses/` and deploy to GitHub Pages on push to `main`
 
