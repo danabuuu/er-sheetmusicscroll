@@ -27,6 +27,18 @@ import {
   ImageRawDataUpdate,
 } from '@evenrealities/even_hub_sdk';
 
+// ─── HMR cleanup ────────────────────────────────────────────────────────────
+// Track the active event-listener unsubscribe fn so hot-reload doesn't
+// stack up duplicate handlers on the same bridge instance.
+let _unsubscribeEvents: (() => void) | null = null;
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    _unsubscribeEvents?.();
+    _unsubscribeEvents = null;
+    console.log('[scroll] HMR: disposed old event handler');
+  });
+}
+
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) ?? '';
@@ -386,6 +398,7 @@ async function main(): Promise<void> {
     setStatus('Loading setlist…');
     await updateListData(['Loading…']);
     setlistSongs = await fetchSetlistSongs(gigId);
+    console.log('[scroll] fetchSetlistSongs returned', setlistSongs.length, 'songs for gig', gigId);
     if (setlistSongs.length === 0) {
       setStatus('Setlist is empty');
       await updateListData(['(empty setlist)', '← Back']);
@@ -410,6 +423,7 @@ async function main(): Promise<void> {
     await updateListData([firstSong ? `Loading: ${firstSong.title}…` : 'Loading…']);
     if (firstSong) {
       const url = resolveScrollUrl(firstSong, selectedPart);
+      console.log('[scroll] enterReady firstSong:', firstSong.title, 'url:', url);
       if (url) {
         setStatus(`Ready: ${firstSong.title}`);
         const result = await fetchScrollPixels(url);
@@ -461,9 +475,9 @@ async function main(): Promise<void> {
   }
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
-  // Use item NAME for disambiguation where content changes between states.
-  // Fall back to index when name is missing (simulator may omit it).
-  bridge.onEvenHubEvent((event) => {
+  // Use index for IDLE/PLAYING (list content is stable); name+index fallback
+  // for READY/PART_SELECT where a leftover selected index could mismatch.
+  _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
     if (!event.listEvent) return;
     const idx  = event.listEvent.currentSelectItemIndex ?? -1;
