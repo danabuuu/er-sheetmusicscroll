@@ -303,8 +303,11 @@ async function main(): Promise<void> {
   }
 
   // ── Update list items via rebuildPageContainer ─────────────────────────────
+  let currentListItems: string[] = []; // authoritative copy of what's in the list
+
   async function updateListData(items: string[]): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
+    currentListItems = safe;
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -475,13 +478,18 @@ async function main(): Promise<void> {
   }
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
-  // Use index for IDLE/PLAYING (list content is stable); name+index fallback
-  // for READY/PART_SELECT where a leftover selected index could mismatch.
+  // Resolve the item name from our own list copy — the simulator's reported
+  // currentSelectItemIndex can carry over from a previous list if the SDK
+  // doesn't reset the selection when the list is rebuilt.
   _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
     if (!event.listEvent) return;
     const idx  = event.listEvent.currentSelectItemIndex ?? -1;
-    const name = event.listEvent.currentSelectItemName ?? '';
+    // Prefer our local list over the SDK-reported name (may be empty)
+    const name = (idx >= 0 && idx < currentListItems.length)
+      ? currentListItems[idx]
+      : (event.listEvent.currentSelectItemName ?? '');
+    console.log('[scroll] resolved name:', JSON.stringify(name), 'idx:', idx, 'listLen:', currentListItems.length);
 
     if (appState === AppState.IDLE) {
       if (idx >= 0 && idx < gigs.length) {
@@ -489,22 +497,20 @@ async function main(): Promise<void> {
       }
 
     } else if (appState === AppState.PART_SELECT) {
-      const labels = uniquePartLabels(setlistSongs);
-      // last item is always "← Back to gigs"
-      if (idx >= 0 && idx < labels.length && name !== '← Back to gigs') {
-        selectedPart = labels[idx];
-        void enterReady();
-      } else if (idx >= labels.length || name === '← Back to gigs') {
+      if (name === '← Back to gigs') {
         void enterIdle();
+      } else {
+        const labels = uniquePartLabels(setlistSongs);
+        if (labels.includes(name)) {
+          selectedPart = name;
+          void enterReady();
+        }
       }
 
     } else if (appState === AppState.READY) {
-      // list is always ['▶ Start', '← Back'] — match by name with index fallback
-      const isStart = name === '▶ Start' || idx === 0;
-      const isBack  = name === '← Back'  || idx === 1;
-      if (isStart && name !== '← Back') {
+      if (name === '▶ Start') {
         void playSetlistFrom(setlistSongs, 0);
-      } else if (isBack) {
+      } else if (name === '← Back') {
         if (partSkipped) {
           void enterIdle();
         } else {
@@ -516,27 +522,27 @@ async function main(): Promise<void> {
       }
 
     } else if (appState === AppState.PLAYING) {
-      switch (idx) {
-        case 0: // ▶ Play
+      switch (name) {
+        case '▶ Play':
           if (!playing && scrollPixels) { playing = true; scheduleTick(); }
           break;
-        case 1: // ⏸ Pause
+        case '⏸ Pause':
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
           break;
-        case 2: // + BPM
+        case '+ BPM':
           bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
           break;
-        case 3: // - BPM
+        case '- BPM':
           bpm = Math.max(BPM_MIN, bpm - BPM_STEP);
           break;
-        case 4: // → Step
+        case '→ Step':
           if (scrollPixels) {
             xOffset = Math.min(xOffset + PIXELS_PER_BEAT, scrollW - PIXELS_PER_BEAT);
             void sendFrame();
           }
           break;
-        case 5: // ← Back
+        case '← Back':
           xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
           void sendFrame();
           break;
