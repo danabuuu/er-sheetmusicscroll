@@ -279,8 +279,15 @@ async function main(): Promise<void> {
   const startupResult = await bridge.createStartUpPageContainer(startupPage);
   console.log('[scroll] createStartUpPageContainer result:', startupResult);
   if (startupResult !== 0) {
-    setStatus(`Layout error (code ${startupResult}) — check container counts/sizes`);
-    return;
+    // Code 1 (invalid) means the bridge session already has containers — this
+    // happens in the simulator when Vite hot-reloads the page without restarting
+    // the simulator. The containers are still live; proceed via rebuildPageContainer.
+    // Codes 2 (oversize) and 3 (outOfMemory) are genuine failures.
+    if (startupResult !== 1) {
+      setStatus(`Layout error (code ${startupResult}) — check container counts/sizes`);
+      return;
+    }
+    console.warn('[scroll] createStartUpPageContainer already initialized — continuing');
   }
 
   // ── Update list items via rebuildPageContainer ─────────────────────────────
