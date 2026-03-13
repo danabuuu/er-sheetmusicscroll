@@ -235,7 +235,6 @@ async function main(): Promise<void> {
     yPosition: 188,
     width: FRAME_W,
     height: FRAME_H,
-    isEventCapture: 0,
   });
 
   const imageContainerMid = new ImageContainerProperty({
@@ -245,7 +244,6 @@ async function main(): Promise<void> {
     yPosition: 188,
     width: FRAME_W,
     height: FRAME_H,
-    isEventCapture: 0,
   });
 
   const imageContainerRight = new ImageContainerProperty({
@@ -255,7 +253,6 @@ async function main(): Promise<void> {
     yPosition: 188,
     width: FRAME_W,
     height: FRAME_H,
-    isEventCapture: 0,
   });
 
   // ── Initial startup layout (called ONCE) ──────────────────────────────────
