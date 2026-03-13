@@ -373,6 +373,8 @@ async function main(): Promise<void> {
   }
 
   async function selectGig(gigId: number): Promise<void> {
+    // Set state immediately so IDLE handler can't fire again while we await
+    appState = AppState.PART_SELECT;
     currentGigId = gigId;
     setStatus('Loading setlist…');
     await updateListData(['Loading…']);
@@ -452,36 +454,37 @@ async function main(): Promise<void> {
   }
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
+  // Use item NAME not index — the selected index carries over between list
+  // rebuilds, so index-based matching mis-fires when the list changes length.
   bridge.onEvenHubEvent((event) => {
-    console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState, 'gigs:', gigs.length);
+    console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
     if (!event.listEvent) return;
-    const idx = event.listEvent.currentSelectItemIndex ?? -1;
+    const name = event.listEvent.currentSelectItemName ?? '';
 
     if (appState === AppState.IDLE) {
-      if (idx >= 0 && idx < gigs.length) {
-        void selectGig(gigs[idx].id);
-      }
+      const gigIdx = gigs.findIndex(
+        g => name === g.name + (g.date ? ` (${g.date})` : ''),
+      );
+      if (gigIdx >= 0) void selectGig(gigs[gigIdx].id);
 
     } else if (appState === AppState.PART_SELECT) {
-      const labels = uniquePartLabels(setlistSongs);
-      if (idx >= 0 && idx < labels.length) {
-        selectedPart = labels[idx];
-        void enterReady();
-      } else {
-        // "← Back to gigs" or any out-of-range index
+      if (name === '← Back to gigs') {
         void enterIdle();
+      } else {
+        const labels = uniquePartLabels(setlistSongs);
+        if (labels.includes(name)) {
+          selectedPart = name;
+          void enterReady();
+        }
       }
 
     } else if (appState === AppState.READY) {
-      if (idx === 0) {
-        // ▶ Start
+      if (name === '▶ Start') {
         void playSetlistFrom(setlistSongs, 0);
-      } else {
-        // ← Back
+      } else if (name === '← Back') {
         if (partSkipped) {
           void enterIdle();
         } else {
-          // Re-show part select without re-fetching
           appState = AppState.PART_SELECT;
           const labels = uniquePartLabels(setlistSongs);
           void updateListData([...labels, '← Back to gigs']);
@@ -490,27 +493,27 @@ async function main(): Promise<void> {
       }
 
     } else if (appState === AppState.PLAYING) {
-      switch (idx) {
-        case 0: // ▶ Play
+      switch (name) {
+        case '▶ Play':
           if (!playing && scrollPixels) { playing = true; scheduleTick(); }
           break;
-        case 1: // ⏸ Pause
+        case '⏸ Pause':
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
           break;
-        case 2: // + BPM
+        case '+ BPM':
           bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
           break;
-        case 3: // - BPM
+        case '- BPM':
           bpm = Math.max(BPM_MIN, bpm - BPM_STEP);
           break;
-        case 4: // → Step
+        case '→ Step':
           if (scrollPixels) {
             xOffset = Math.min(xOffset + PIXELS_PER_BEAT, scrollW - PIXELS_PER_BEAT);
             void sendFrame();
           }
           break;
-        case 5: // ← Back
+        case '← Back':
           xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
           void sendFrame();
           break;
