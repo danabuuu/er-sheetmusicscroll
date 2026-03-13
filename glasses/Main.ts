@@ -308,6 +308,7 @@ async function main(): Promise<void> {
   async function updateListData(items: string[]): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
+    focusedIdx = 0;
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -478,18 +479,24 @@ async function main(): Promise<void> {
   }
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
-  // Resolve the item name from our own list copy — the simulator's reported
-  // currentSelectItemIndex can carry over from a previous list if the SDK
-  // doesn't reset the selection when the list is rebuilt.
+  // The simulator sends currentSelectItemIndex on scroll (Up/Down) but NOT
+  // on click (idx = -1 on click events). Track the focused index ourselves
+  // and resolve the name from our local list copy.
+  let focusedIdx = 0;
+
   _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
     if (!event.listEvent) return;
-    const idx  = event.listEvent.currentSelectItemIndex ?? -1;
-    // Prefer our local list over the SDK-reported name (may be empty)
+    const rawIdx = event.listEvent.currentSelectItemIndex ?? -1;
+
+    // Update focus tracking on scroll events; use tracked index on click
+    if (rawIdx >= 0) focusedIdx = rawIdx;
+    const idx = rawIdx >= 0 ? rawIdx : focusedIdx;
+
     const name = (idx >= 0 && idx < currentListItems.length)
       ? currentListItems[idx]
       : (event.listEvent.currentSelectItemName ?? '');
-    console.log('[scroll] resolved name:', JSON.stringify(name), 'idx:', idx, 'listLen:', currentListItems.length);
+    console.log('[scroll] resolved name:', JSON.stringify(name), 'idx:', idx, 'focusedIdx:', focusedIdx, 'listLen:', currentListItems.length);
 
     if (appState === AppState.IDLE) {
       if (idx >= 0 && idx < gigs.length) {
