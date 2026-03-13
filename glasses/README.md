@@ -2,16 +2,6 @@
 
 Even Hub app that scrolls sheet music on Even Realities G2 glasses.
 
-## Live URL
-
-```
-https://danabuuu.github.io/er-sheetmusicscroll/
-```
-
-Point the Even Hub app at this URL using the QR code below:
-
-![QR code — https://danabuuu.github.io/er-sheetmusicscroll/](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https%3A%2F%2Fdanabuuu.github.io%2Fer-sheetmusicscroll%2F)
-
 ## Local Development
 
 ```bash

@@ -235,6 +235,7 @@ async function main(): Promise<void> {
     yPosition: 188,
     width: FRAME_W,
     height: FRAME_H,
+    isEventCapture: 0,
   });
 
   const imageContainerMid = new ImageContainerProperty({
@@ -244,6 +245,7 @@ async function main(): Promise<void> {
     yPosition: 188,
     width: FRAME_W,
     height: FRAME_H,
+    isEventCapture: 0,
   });
 
   const imageContainerRight = new ImageContainerProperty({
@@ -253,6 +255,7 @@ async function main(): Promise<void> {
     yPosition: 188,
     width: FRAME_W,
     height: FRAME_H,
+    isEventCapture: 0,
   });
 
   // ── Initial startup layout (called ONCE) ──────────────────────────────────
@@ -451,6 +454,7 @@ async function main(): Promise<void> {
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
   bridge.onEvenHubEvent((event) => {
+    console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState, 'gigs:', gigs.length);
     if (!event.listEvent) return;
     const idx = event.listEvent.currentSelectItemIndex ?? -1;
 
