@@ -4,7 +4,7 @@ import { supabase, supabaseAdmin } from '@/lib/supabase';
 export async function GET() {
   const { data, error } = await supabase
     .from('songs')
-    .select('id, title, artist, tempo, scroll_url, beats_in_scroll, parts')
+    .select('id, title, artist, tempo, scroll_url, beats_in_scroll')
     .order('title');
 
   if (error) {

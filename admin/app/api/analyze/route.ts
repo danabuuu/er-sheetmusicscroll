@@ -10,7 +10,12 @@ import { uploadJobFile } from '@/lib/supabase-jobs';
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json({ error: 'Expected multipart/form-data with a pdf field' }, { status: 400 });
+  }
   const file = form.get('pdf');
 
   if (!(file instanceof File)) {
