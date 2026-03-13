@@ -375,6 +375,7 @@ async function main(): Promise<void> {
   async function selectGig(gigId: number): Promise<void> {
     currentGigId = gigId;
     setStatus('Loading setlist…');
+    await updateListData(['Loading…']);
     setlistSongs = await fetchSetlistSongs(gigId);
     if (setlistSongs.length === 0) {
       setStatus('Setlist is empty');
@@ -396,8 +397,8 @@ async function main(): Promise<void> {
 
   async function enterReady(): Promise<void> {
     appState = AppState.READY;
-    await updateListData(['▶ Start', '← Back']);
     const firstSong = setlistSongs[0];
+    await updateListData([firstSong ? `Loading: ${firstSong.title}…` : 'Loading…']);
     if (firstSong) {
       const url = resolveScrollUrl(firstSong, selectedPart);
       if (url) {
@@ -414,6 +415,7 @@ async function main(): Promise<void> {
         setStatus(`Ready: ${firstSong.title} (no scroll image)`);
       }
     }
+    await updateListData(['▶ Start', '← Back']);
   }
 
   async function playSetlistFrom(songs: SetlistSong[], index: number): Promise<void> {
