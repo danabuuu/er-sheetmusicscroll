@@ -526,6 +526,7 @@ async function main(): Promise<void> {
     // Scroll events just update focus — no action
     if (evType === OsEventTypeList.SCROLL_TOP_EVENT || evType === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
       if (rawIdx >= 0) focusedIdx = rawIdx;
+      lastClickTime = 0; // moving to a different item resets the double-click timer
       return;
     }
 
