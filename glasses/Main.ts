@@ -66,7 +66,7 @@ const ID_SCROLL_RIGHT = 4;
 const ID_CONTROLS     = 2;
 
 // State machine
-const enum AppState { IDLE, PART_SELECT, READY, PLAYING }
+const enum AppState { IDLE, PART_SELECT, READY, PLAYING, CONFIRM_EXIT }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -539,13 +539,15 @@ async function main(): Promise<void> {
     lastClickTime = now;
 
     if (isDoubleClick) {
-      // Double-click in PLAYING → go back to the setlist (READY) screen
+      // Double-click in PLAYING → show exit confirmation
       if (appState === AppState.PLAYING) {
         playing = false;
         if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-        void enterReady();
+        appState = AppState.CONFIRM_EXIT;
+        void updateListData(['Return to menu?', '← No', '✓ Yes']);
+        focusedIdx = 1; // default: No
       }
-      lastClickTime = 0; // reset so triple-click doesn't chain
+      lastClickTime = 0;
       return;
     }
 
@@ -572,6 +574,15 @@ async function main(): Promise<void> {
           selectedPart = name;
           void enterReady();
         }
+      }
+
+    } else if (appState === AppState.CONFIRM_EXIT) {
+      if (name === '✓ Yes') {
+        void enterReady();
+      } else {
+        // No (or anything else) — resume playing state
+        appState = AppState.PLAYING;
+        void updateListData(playingControls());
       }
 
     } else if (appState === AppState.READY) {
