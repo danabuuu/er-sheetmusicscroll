@@ -475,6 +475,7 @@ async function main(): Promise<void> {
     await updateListData(['▶ Play', '⏸ Pause', '+ BPM', '- BPM', '→ Step', '← Back']);
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
+    xOffset += PIXELS_PER_BEAT;   // advance so the tick loop starts on column 1 (not column 0 again)
     playing = true;
     scheduleTick();
   }

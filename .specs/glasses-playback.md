@@ -129,7 +129,7 @@ Deployment is fully automated via `.github/workflows/deploy-glasses.yml`:
 - [x] `fetchScrollPixels(url)` — download scroll PNG, decode to raw RGBA pixel buffer via canvas
 - [x] `extractSlice(pixels, w, h, xOffset)` — crop a 192×100 slice
 - [x] `sendFrame()` — extract 3 slices at `xOffset`, `xOffset+192`, `xOffset+384`, push to LEFT/MID/RIGHT containers in parallel
-- [x] `scheduleTick()` — compute interval from BPM + `beats_in_scroll`, call `sendFrame`, advance `xOffset`, recurse
+- [x] `scheduleTick()` — compute interval from BPM + `beats_in_scroll`, call `sendFrame`, advance `xOffset`, recurse; initial `sendFrame` in `playSetlistFrom` advances `xOffset` by `PIXELS_PER_BEAT` so the tick loop starts on column 1 (not column 0 again)
 - [x] `playSetlistFrom(songs, index)` — resolve scroll URL for `songs[index]` using `selectedPart`; load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted return to idle state
 - [x] `onEvenHubEvent` handler: Play / Pause / +BPM / -BPM
 - [x] `onEvenHubEvent`: → Step (index 4) — advance `xOffset` by `PIXELS_PER_BEAT`, clamp, call `sendFrame()`
