@@ -593,7 +593,7 @@ async function main(): Promise<void> {
 
     } else if (appState === AppState.CONFIRM_EXIT) {
       if (name === '✓ Yes') {
-        void enterReady();
+        void enterIdle();
       } else {
         // No (or anything else) — resume playing state
         appState = AppState.PLAYING;
