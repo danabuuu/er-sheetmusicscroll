@@ -539,9 +539,11 @@ async function main(): Promise<void> {
     lastClickTime = now;
 
     if (isDoubleClick) {
-      if (appState === AppState.PLAYING || appState === AppState.READY) {
-        xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
-        void sendFrame();
+      // Double-click in PLAYING → go back to the setlist (READY) screen
+      if (appState === AppState.PLAYING) {
+        playing = false;
+        if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+        void enterReady();
       }
       lastClickTime = 0; // reset so triple-click doesn't chain
       return;
