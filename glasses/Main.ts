@@ -544,8 +544,10 @@ async function main(): Promise<void> {
         playing = false;
         if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
         appState = AppState.CONFIRM_EXIT;
-        void updateListData(['Return to menu?', '← No', '✓ Yes']);
-        focusedIdx = 1; // default: No
+        setStatus('Return to menu?');
+        // Only 2 items so SDK default-focuses item 0 (← No) — safe if user clicks immediately
+        void updateListData(['← No', '✓ Yes']);
+        focusedIdx = 0;
       }
       lastClickTime = 0;
       return;
@@ -583,6 +585,7 @@ async function main(): Promise<void> {
         // No (or anything else) — resume playing state
         appState = AppState.PLAYING;
         void updateListData(playingControls());
+        focusedIdx = 0; // focus → Step
       }
 
     } else if (appState === AppState.READY) {
@@ -624,11 +627,15 @@ async function main(): Promise<void> {
             const wasPlayingStep = playing;
             playing = false;
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-            xOffset = Math.min(xOffset + PIXELS_PER_BEAT, scrollW - PIXELS_PER_BEAT);
-            void sendFrame();
-            // Only rebuild if the list changed (was playing → now paused swaps ⏸ Pause → ▶ Play)
-            // Rebuilding when already paused resets SDK selection to item 0
-            if (wasPlayingStep) void updateListData(playingControls(), true);
+            // If already at the last frame, advance to the next song
+            if (xOffset + PIXELS_PER_BEAT >= scrollW) {
+              setStatus('Loading next song…');
+              void playSetlistFrom(setlistSongs, currentSongIdx + 1);
+            } else {
+              xOffset += PIXELS_PER_BEAT;
+              void sendFrame();
+              if (wasPlayingStep) void updateListData(playingControls(), true);
+            }
           }
           break;
         case '← Back':
