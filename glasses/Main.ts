@@ -519,6 +519,22 @@ async function main(): Promise<void> {
 
   _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
+
+    // Double-click can arrive as a sysEvent (no listEvent) — handle it first
+    const sysEvType = event.sysEvent?.eventType;
+    if (sysEvType === OsEventTypeList.DOUBLE_CLICK_EVENT) {
+      if (appState === AppState.PLAYING) {
+        playing = false;
+        if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+        appState = AppState.CONFIRM_EXIT;
+        setStatus('Return to menu?');
+        void updateListData(['← No', '✓ Yes']);
+        focusedIdx = 0;
+      }
+      lastClickTime = 0;
+      return;
+    }
+
     if (!event.listEvent) return;
     const rawIdx = event.listEvent.currentSelectItemIndex ?? -1;
     const evType = event.listEvent.eventType;
