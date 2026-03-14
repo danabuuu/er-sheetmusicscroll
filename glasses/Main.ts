@@ -240,6 +240,16 @@ async function main(): Promise<void> {
   let partSkipped   = false;
   let currentGigId  : number | null = null;
 
+  // Pre-fetch cache: key = URL, value = decoded pixel data
+  const pixelCache = new Map<string, { pixels: Uint8ClampedArray; width: number; height: number }>();
+
+  async function fetchScrollPixelsCached(url: string) {
+    if (pixelCache.has(url)) return pixelCache.get(url)!;
+    const result = await fetchScrollPixels(url);
+    if (result) pixelCache.set(url, result);
+    return result;
+  }
+
   // ── Static image container definitions (reused by rebuildPageContainer) ───
   const imageContainerLeft = new ImageContainerProperty({
     containerID: ID_SCROLL_LEFT,
@@ -305,6 +315,11 @@ async function main(): Promise<void> {
 
   // ── Update list items via rebuildPageContainer ─────────────────────────────
   let currentListItems: string[] = []; // authoritative copy of what's in the list
+
+  // Playing-state controls: Step/Back first (primary use), then play toggle, then BPM
+  function playingControls(): string[] {
+    return ['→ Step', '← Back', playing ? '⏸ Pause' : '▶ Play', '+ BPM', '- BPM'];
+  }
 
   async function updateListData(items: string[]): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
@@ -431,13 +446,19 @@ async function main(): Promise<void> {
       console.log('[scroll] enterReady firstSong:', firstSong.title, 'url:', url);
       if (url) {
         setStatus(`Ready: ${firstSong.title}`);
-        const result = await fetchScrollPixels(url);
+        const result = await fetchScrollPixelsCached(url);
         if (result) {
           scrollPixels = result.pixels;
           scrollW = result.width;
           scrollH = result.height;
           xOffset = 0;
           await sendFrame();
+          // Pre-fetch second song in background
+          const second = setlistSongs[1];
+          if (second) {
+            const u = resolveScrollUrl(second, selectedPart);
+            if (u) void fetchScrollPixelsCached(u);
+          }
         }
       } else {
         setStatus(`Ready: ${firstSong.title} (no scroll image)`);
@@ -459,7 +480,7 @@ async function main(): Promise<void> {
       return;
     }
     setStatus(`Loading: ${song.title}…`);
-    const result = await fetchScrollPixels(url);
+    const result = await fetchScrollPixelsCached(url);
     if (!result) {
       void playSetlistFrom(songs, index + 1);
       return;
@@ -472,34 +493,59 @@ async function main(): Promise<void> {
     currentSong = song;
     currentSongIdx = index;
     appState = AppState.PLAYING;
-    await updateListData(['▶ Play', '⏸ Pause', '+ BPM', '- BPM', '→ Step', '← Back']);
+    playing = true;
+    await updateListData(playingControls());
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
     xOffset += PIXELS_PER_BEAT;   // advance so the tick loop starts on column 1 (not column 0 again)
-    playing = true;
     scheduleTick();
+    // Pre-fetch next song in background while this one plays
+    const next = songs[index + 1];
+    if (next) {
+      const nextUrl = resolveScrollUrl(next, selectedPart);
+      if (nextUrl) void fetchScrollPixelsCached(nextUrl);
+    }
   }
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
   // The simulator sends currentSelectItemIndex on scroll (Up/Down) but NOT
   // on click (idx = -1 on click events). Track the focused index ourselves
   // and resolve the name from our local list copy.
+  //
+  // Double-click: the simulator may not emit DOUBLE_CLICK_EVENT reliably, so
+  // we detect two clicks within 350 ms manually.
   let focusedIdx = 0;
+  let lastClickTime = 0;
 
   _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
     if (!event.listEvent) return;
     const rawIdx = event.listEvent.currentSelectItemIndex ?? -1;
-    const isDoubleClick = event.listEvent.eventType === OsEventTypeList.DOUBLE_CLICK_EVENT;
+    const evType = event.listEvent.eventType;
 
-    // Double-click steps back one frame in all non-idle states
+    // Scroll events just update focus — no action
+    if (evType === OsEventTypeList.SCROLL_TOP_EVENT || evType === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
+      if (rawIdx >= 0) focusedIdx = rawIdx;
+      return;
+    }
+
+    // Click/confirm event (CLICK_EVENT or eventType undefined/0)
+    // Detect rapid double-click by timing
+    const now = Date.now();
+    const isDoubleClick =
+      evType === OsEventTypeList.DOUBLE_CLICK_EVENT ||
+      (now - lastClickTime < 350);
+    lastClickTime = now;
+
     if (isDoubleClick) {
       if (appState === AppState.PLAYING || appState === AppState.READY) {
         xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
         void sendFrame();
       }
+      lastClickTime = 0; // reset so triple-click doesn't chain
       return;
     }
+
     // Update focus tracking on scroll events; use tracked index on click
     if (rawIdx >= 0) focusedIdx = rawIdx;
     const idx = rawIdx >= 0 ? rawIdx : focusedIdx;
@@ -542,11 +588,16 @@ async function main(): Promise<void> {
     } else if (appState === AppState.PLAYING) {
       switch (name) {
         case '▶ Play':
-          if (!playing && scrollPixels) { playing = true; scheduleTick(); }
+          if (!playing && scrollPixels) {
+            playing = true;
+            void updateListData(playingControls());
+            scheduleTick();
+          }
           break;
         case '⏸ Pause':
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+          void updateListData(playingControls());
           break;
         case '+ BPM':
           bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
@@ -556,13 +607,19 @@ async function main(): Promise<void> {
           break;
         case '→ Step':
           if (scrollPixels) {
+            playing = false;
+            if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
             xOffset = Math.min(xOffset + PIXELS_PER_BEAT, scrollW - PIXELS_PER_BEAT);
             void sendFrame();
+            void updateListData(playingControls());
           }
           break;
         case '← Back':
+          playing = false;
+          if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
           xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
           void sendFrame();
+          void updateListData(playingControls());
           break;
       }
     }
