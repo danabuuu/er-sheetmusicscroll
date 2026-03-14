@@ -321,10 +321,10 @@ async function main(): Promise<void> {
     return ['→ Step', '← Back', playing ? '⏸ Pause' : '▶ Play', '+ BPM', '- BPM'];
   }
 
-  async function updateListData(items: string[]): Promise<void> {
+  async function updateListData(items: string[], preserveFocus = false): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
-    focusedIdx = 0;
+    if (!preserveFocus) focusedIdx = 0;
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -493,12 +493,12 @@ async function main(): Promise<void> {
     currentSong = song;
     currentSongIdx = index;
     appState = AppState.PLAYING;
-    playing = true;
+    playing = false;  // start paused — manual step/back is the default mode
     await updateListData(playingControls());
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
     xOffset += PIXELS_PER_BEAT;   // advance so the tick loop starts on column 1 (not column 0 again)
-    scheduleTick();
+    // don't auto-play — user presses ▶ Play to start
     // Pre-fetch next song in background while this one plays
     const next = songs[index + 1];
     if (next) {
@@ -590,14 +590,14 @@ async function main(): Promise<void> {
         case '▶ Play':
           if (!playing && scrollPixels) {
             playing = true;
-            void updateListData(playingControls());
+            void updateListData(playingControls(), true);
             scheduleTick();
           }
           break;
         case '⏸ Pause':
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          void updateListData(playingControls());
+          void updateListData(playingControls(), true);
           break;
         case '+ BPM':
           bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
@@ -611,7 +611,7 @@ async function main(): Promise<void> {
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
             xOffset = Math.min(xOffset + PIXELS_PER_BEAT, scrollW - PIXELS_PER_BEAT);
             void sendFrame();
-            void updateListData(playingControls());
+            void updateListData(playingControls(), true);
           }
           break;
         case '← Back':
@@ -619,7 +619,7 @@ async function main(): Promise<void> {
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
           xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
           void sendFrame();
-          void updateListData(playingControls());
+          void updateListData(playingControls(), true);
           break;
       }
     }
