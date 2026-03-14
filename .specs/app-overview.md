@@ -19,8 +19,8 @@
 
 | Part | Repo | Hosting | Tech | Purpose |
 |------|------|---------|------|---------|
-| **Bandtracker** | [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker) | GitHub Pages | Static site | Setlist/gig management **+** score processing UI: PDF upload, staff selection, scroll building, song library |
-| **Processing API** | this repo (`admin/`) | Vercel | Next.js API routes only — no UI pages | Server-side PDF rendering, staff detection, scroll image building; exposes REST endpoints called by Bandtracker |
+| **Bandtracker** | [danabuuu/BandTracker](https://github.com/danabuuu/BandTracker) | GitHub Pages | Static site | Setlist/gig management **+** score processing UI: PDF upload, staff selection, scroll building, song library. **This is the active UI for strip building — work on strip-building features happens here, not in `admin/`.** |
+| **Processing API** | this repo (`admin/`) | Vercel | Next.js API routes only — no UI pages | Server-side PDF rendering, staff detection, scroll image building; exposes REST endpoints called by Bandtracker. The `admin/app/upload/` and `admin/app/select/` UI pages are legacy reference code — **do not develop new features there.** |
 | **Glasses app** | this repo (`glasses/`) | GitHub Pages | Vite + Even Hub SDK | Even Hub display client — browse setlists, wait to start, then scroll sheet music on G2 glasses |
 
 All three parts share the **same Supabase project** for data and storage.
@@ -32,7 +32,9 @@ All three parts share the **same Supabase project** for data and storage.
 
 ### Processing API (this repo — `admin/`)
 - Lives at `admin/` in this repo; deployed to Vercel
-- **API routes only** — no UI pages (upload/select pages have moved to Bandtracker)
+- **API routes only** — no active UI pages
+- The `admin/app/upload/` and `admin/app/select/` folders are **legacy reference code** from before Bandtracker had parity. They are not used in production and should not receive new feature work. They will be deleted once confirmed redundant.
+- All strip-building UI work (preview, nudge buttons, setlist view, etc.) is done in the **Bandtracker** repo, not here.
 - Exposes: `POST /api/analyze`, `GET /api/pages/[jobId]/[pageIndex]`, `POST /api/detect-staff`, `POST /api/build`, `GET /api/songs`, `GET /api/now-playing`, `PUT /api/now-playing`
 - Intermediate job files (PDF + rendered page PNGs) stored in Supabase Storage (`jobs` bucket) since Vercel has no persistent disk
 - Vercel environment variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
