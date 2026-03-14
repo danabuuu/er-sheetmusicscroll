@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { analyzeScore, renderPageToImage } from '@lib/staff-extraction';
+import { analyzeScore } from '@lib/staff-extraction';
 import { isValidJobId } from '@/lib/jobs';
 import { uploadJobFile } from '@/lib/supabase-jobs';
 
@@ -34,10 +34,11 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = Buffer.from(await file.arrayBuffer());
     writeFileSync(tmpPdf, pdfBuffer);
 
-    // Analyze — detects staves and counts pages
+    // Analyze — detects staves and counts pages (renders each page internally at 150 DPI)
     const analysis = await analyzeScore(tmpPdf);
 
-    // Upload PDF and analysis JSON to Supabase Storage (jobs bucket)
+    // Upload PDF and analysis JSON to Supabase Storage (jobs bucket).
+    // Pages are rendered on demand by /api/pages — no pre-rendering here.
     await uploadJobFile(jobId, 'upload.pdf', pdfBuffer, 'application/pdf');
     await uploadJobFile(
       jobId,
@@ -45,12 +46,6 @@ export async function POST(request: NextRequest) {
       Buffer.from(JSON.stringify(analysis)),
       'application/json',
     );
-
-    // Pre-render all page images and upload them
-    for (let i = 0; i < analysis.pageCount; i++) {
-      const pageBuffer = renderPageToImage(tmpPdf, i);
-      await uploadJobFile(jobId, `page-${i}.png`, pageBuffer, 'image/png');
-    }
 
     return NextResponse.json({ jobId, analysis });
   } finally {

@@ -1,6 +1,9 @@
+import { writeFileSync, mkdirSync, rmSync } from 'fs';
+import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidJobId } from '@/lib/jobs';
 import { downloadJobFile } from '@/lib/supabase-jobs';
+import { renderPageToImage } from '@lib/staff-extraction';
 
 export async function GET(
   _request: NextRequest,
@@ -17,15 +20,25 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid page index' }, { status: 400 });
   }
 
-  const data = await downloadJobFile(jobId, `page-${pageIndex}.png`);
-  if (!data) {
-    return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+  // Download PDF and render the requested page on demand.
+  const pdfBuffer = await downloadJobFile(jobId, 'upload.pdf');
+  if (!pdfBuffer) {
+    return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   }
 
-  return new NextResponse(data.buffer as ArrayBuffer, {
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600, immutable',
-    },
-  });
+  const tmpDir = path.join('/tmp', `pages-${jobId}`);
+  const tmpPdf = path.join(tmpDir, 'upload.pdf');
+  try {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(tmpPdf, pdfBuffer);
+    const png = renderPageToImage(tmpPdf, pageIndex);
+    return new NextResponse(png.buffer as ArrayBuffer, {
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=3600, immutable',
+      },
+    });
+  } finally {
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
 }

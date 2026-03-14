@@ -134,5 +134,5 @@ Deployment is fully automated via `.github/workflows/deploy-glasses.yml`:
 - [x] `onEvenHubEvent` handler: Play / Pause / +BPM / -BPM
 - [x] `onEvenHubEvent`: → Step (index 4) — advance `xOffset` by `PIXELS_PER_BEAT`, clamp, call `sendFrame()`
 - [x] `onEvenHubEvent`: ← Back (index 5) — retreat `xOffset` by `PIXELS_PER_BEAT`, clamp at 0, call `sendFrame()`
-- [ ] Ring gesture: confirm SDK event type; map to → Step action
+- [x] Ring gesture: fires the same `listEvent` as temple — handled by existing `onEvenHubEvent`; no separate mapping needed
 - [x] Cache-bust scroll image URL with `?t=Date.now()` to force re-fetch on re-build

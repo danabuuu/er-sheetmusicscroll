@@ -119,7 +119,7 @@ Current schema (Postgres via Supabase):
 - [x] **Staff selection page** (`select.html`): fetch page images; render each page with SVG overlay of staff bounding boxes; clicking a box selects it; clicking outside calls `POST .../api/detect-staff` (green/dashed outline on success, size-estimated fallback on 404)
 - [x] Staff selection: sidebar shows ordered scroll list, each entry removable; BPM, measures, label fields; dotted-line padding preview
 - [x] **"Build & Finish"**: build scroll, save part, redirect to `index.html`
-- [ ] **"Build & Add Part"**: build scroll, save part, clear selections, stay on page (true loop)
+- [x] **"Build & Add Part"**: build scroll, save part, clear selections, stay on page (true loop)
 - [x] Song metadata (BPM, measures) on select page; also editable from song library (see below)
 - [x] **Library home page** (`index.html`): list all songs with edit/delete; gigs + setlist tab
 - [x] **Song card**: show existing `parts` strips as label badges + small thumbnail previews; show `tempo` and `beats_in_scroll` values
@@ -141,10 +141,10 @@ Current schema (Postgres via Supabase):
 - [x] **Playing state**: controls list shows ▶ Play / ⏸ Pause / +BPM / -BPM / → Step / ← Back
 - [x] Auto-play tick loop: interval from BPM + `beats_in_scroll`, advance 576px per tick, push 3 slices to image containers
 - [x] Manual step: → Step advances 576px, ← Back retreats 576px (clamp at 0 and scroll width)
-- [ ] Ring gesture: map ring push to → Step (forward one screen)
+- [x] Ring gesture: fires the same `listEvent` as temple — handled by existing `onEvenHubEvent`; no separate mapping needed
 - [x] End of song: auto-load next song in setlist; when last song ends, return to idle/selection state
 - [x] Test in Even Hub Simulator and on real G2 hardware
-- [ ] Configure GitHub Actions to build `glasses/` and deploy to GitHub Pages on push to `main`
+- [x] Configure GitHub Actions to build `glasses/` and deploy to GitHub Pages on push to `main`
 
 ## Open Questions
 - ~~The root `package.json` currently has `@evenrealities/even_hub_sdk` installed at the workspace root. Move it into `glasses/` when that folder is scaffolded.~~ ✅ Done — SDK is now only in `glasses/package.json`.

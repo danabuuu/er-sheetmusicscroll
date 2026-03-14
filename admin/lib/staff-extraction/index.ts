@@ -3,8 +3,8 @@ import mupdf from 'mupdf';
 import sharp from 'sharp';
 import type { StaffBox, ScoreAnalysis, StaffSelection } from './types.js';
 
-// PDF points are 72 DPI; 300 DPI gives 2× source resolution for sharper downscaling.
-const RENDER_DPI = 300;
+// 150 DPI is sufficient for staff detection and display, and 4× faster to render than 300.
+const RENDER_DPI = 150;
 const SCALE = RENDER_DPI / 72;
 
 // ─── Task 2: renderPageToImage ────────────────────────────────────────────────
