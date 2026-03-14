@@ -2,7 +2,7 @@
 
 ## Requirements
 - On startup the app connects to the Even Hub SDK bridge and registers a layout of 4 containers: one controls list and three side-by-side image containers filling the full 576px display width
-- The app operates in four states: **idle/selection**, **part selection**, **ready**, and **playing** (described below)
+- The app operates in five states: **idle/selection**, **part selection**, **ready**, **playing**, and **confirm exit** (described below)
 
 ### Idle / selection state
 - On startup (and after a setlist completes), fetch the list of gigs from Supabase `gigs` table
@@ -26,16 +26,25 @@
 - "← Back" returns to part selection (or to idle if part selection was skipped)
 
 ### Playing state
+- Songs start in **manual/paused mode** — the scroll is shown at the first frame but the tick loop does not start until the user selects "▶ Play"
 - **Auto mode**: each tick advances the scroll by one full screen width (576 source pixels) and pushes three 192px-wide slices to the three image containers simultaneously; tick interval is derived from BPM + `beats_in_scroll` for accurate musical timing
-- **Manual mode**: when the user selects "→ Step" or "← Back", or uses the ring gesture, the scroll advances or retreats by one full screen (576px); the tick loop is paused in manual mode
+- **Manual mode**: when the user selects "→ Step" or "← Back", the scroll advances or retreats by one full screen (576px); the tick loop is paused in manual mode
 - Temple and ring gestures (via Even Hub list event) trigger controls: Play, Pause, +BPM, -BPM, Step forward, Step back
 - BPM changes are reflected immediately and shown in the HTML status line
-- When one scroll image ends, the app automatically loads the next song in the setlist without re-fetching the gig
+- When one scroll image ends during auto-play, the app automatically loads the next song in the setlist; stepping forward past the last frame also advances to the next song
 - When the last song ends, the app returns to the idle/selection state and shows "Setlist complete"
 - If a song has no `scroll_url` it is skipped
+- **Double-click in PLAYING**: shows the confirm-exit dialog (see below)
+
+### Confirm exit state
+- Triggered by a double-click gesture while in the playing state
+- Controls list shows three items: "Return to menu?", "← No", "✓ Yes"
+- "← No" is focused by default — an accidental double-click resumes playing immediately
+- Selecting "← No" (or the title row) resumes the playing state (re-shows playing controls)
+- Selecting "✓ Yes" returns to the idle/selection state (top-level gig list)
 
 ### SDK gesture constraint
-The Even Hub SDK provides no raw tap/long-press API. All temple input fires `listEvent.currentSelectItemIndex`. Ring gesture likely fires the same event type — to be confirmed with SDK docs. "Manual advance" maps to selecting the "→ Step" list item (or ring push); "go backwards" maps to "← Back".
+The Even Hub SDK provides no raw tap/long-press API. All temple input fires `listEvent.currentSelectItemIndex` for scroll/click events, or `sysEvent.eventType` for system gestures (including double-click). Ring gesture likely fires `listEvent` as well — handled by existing `onEvenHubEvent`; no separate mapping needed.
 
 ## Architecture
 
@@ -62,12 +71,20 @@ List items are the unique part labels collected from the setlist (e.g. `["S", "A
 ### Controls list — playing state
 | Index | Label | Action |
 |---|---|---|
-| 0 | ▶ Play | Start auto-play tick loop |
-| 1 | ⏸ Pause | Stop tick loop |
-| 2 | + BPM | Increase tempo by step |
-| 3 | - BPM | Decrease tempo by step |
-| 4 | → Step | Advance one screen (clamp to scroll width) |
-| 5 | ← Back | Retreat one screen (clamp at 0) |
+| 0 | → Step | Advance one screen; if at last frame, load next song |
+| 1 | ← Back | Retreat one screen (clamp at 0) |
+| 2 | ▶ Play / ⏸ Pause | Toggle auto-play tick loop (label reflects current state) |
+| 3 | + BPM | Increase tempo by step |
+| 4 | - BPM | Decrease tempo by step |
+
+The play/pause slot is a single toggle item whose label switches between "▶ Play" (paused) and "⏸ Pause" (playing). Songs always start paused; the tick loop only starts when the user selects "▶ Play".
+
+### Controls list — confirm exit state
+| Index | Label | Action |
+|---|---|---|
+| 0 | Return to menu? | Non-interactive title (treated as No if clicked) |
+| 1 | ← No | Resume playing state |
+| 2 | ✓ Yes | Return to idle/gig-selection state |
 
 ### Key constants
 - `FRAME_W = 192` — width of each image container and each source slice
@@ -132,7 +149,11 @@ Deployment is fully automated via `.github/workflows/deploy-glasses.yml`:
 - [x] `scheduleTick()` — compute interval from BPM + `beats_in_scroll`, call `sendFrame`, advance `xOffset`, recurse; initial `sendFrame` in `playSetlistFrom` advances `xOffset` by `PIXELS_PER_BEAT` so the tick loop starts on column 1 (not column 0 again)
 - [x] `playSetlistFrom(songs, index)` — resolve scroll URL for `songs[index]` using `selectedPart`; load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted return to idle state
 - [x] `onEvenHubEvent` handler: Play / Pause / +BPM / -BPM
-- [x] `onEvenHubEvent`: → Step (index 4) — advance `xOffset` by `PIXELS_PER_BEAT`, clamp, call `sendFrame()`
-- [x] `onEvenHubEvent`: ← Back (index 5) — retreat `xOffset` by `PIXELS_PER_BEAT`, clamp at 0, call `sendFrame()`
+- [x] `onEvenHubEvent`: → Step (index 0) — advance `xOffset` by `PIXELS_PER_BEAT`; if at end of scroll, load next song via `playSetlistFrom`
+- [x] `onEvenHubEvent`: ← Back (index 1) — retreat `xOffset` by `PIXELS_PER_BEAT`, clamp at 0, call `sendFrame()`
 - [x] Ring gesture: fires the same `listEvent` as temple — handled by existing `onEvenHubEvent`; no separate mapping needed
 - [x] Cache-bust scroll image URL with `?t=Date.now()` to force re-fetch on re-build
+- [x] List rebuild skipped on Step/Back when already paused (avoids resetting SDK list selection to item 0)
+- [x] Double-click detected via `sysEvent.eventType === DOUBLE_CLICK_EVENT` OR two clicks within 350 ms; triggers confirm-exit dialog
+- [x] Confirm-exit state: `['Return to menu?', '← No', '✓ Yes']`; No resumes playing, Yes calls `enterIdle()`
+- [x] Double-click timer reset on scroll events (prevents accidental trigger when moving between buttons)

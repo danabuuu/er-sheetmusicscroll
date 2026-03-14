@@ -95,7 +95,12 @@ ALTER TABLE now_playing ADD COLUMN gig_id integer;
 - [x] `resolveScrollUrl(song, selectedPart)` — helper: find matching part URL or fall back to `scroll_url`; return null if neither exists (song will be skipped)
 - [x] `playSetlistFrom(songs, index)` — resolve URL, load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted: set status "Setlist complete", return to IDLE
 - [x] PLAYING `onEvenHubEvent`: Play / Pause / +BPM / -BPM / → Step / ← Back (see `glasses-playback.md`)
-- [x] Double-click gesture steps back one frame in PLAYING and READY states
+- [x] Double-click gesture: detected via `sysEvent.eventType === DOUBLE_CLICK_EVENT` or two clicks within 350 ms; shows a confirm-exit dialog in PLAYING state
+- [x] Confirm-exit dialog: `['Return to menu?', '← No', '✓ Yes']`; No resumes playing, Yes returns to IDLE
+- [x] Step past end-of-song advances to next song (calls `playSetlistFrom(songs, index + 1)`)
+- [x] Songs start paused; user presses ▶ Play to begin auto-scroll
+- [x] Focus preserved after Step/Back/Play/Pause (list not rebuilt if content unchanged)
+- [x] Double-click timer reset when scrolling between buttons (prevents accidental trigger)
 
 ## SDK / Simulator Implementation Notes
 
@@ -103,8 +108,10 @@ These apply to any future work on the glasses app:
 
 - **`createStartUpPageContainer` code 1** means "already initialized" — happens in the simulator when Vite hot-reloads within the same bridge session. Containers are still live; continue with `rebuildPageContainer`. Only bail on codes 2 (oversize) or 3 (outOfMemory).
 - **Event index on click is -1** — the simulator sends `currentSelectItemIndex` only on scroll (Up/Down) events, not on the click/confirm gesture. Track `focusedIdx` locally, update on scroll events, and use it when the click fires with `idx = -1`.
-- **Resolve item names from local list** — store the current list items in a local `currentListItems` array (updated in `updateListData`). On each event, look up the name as `currentListItems[idx]` rather than trusting `currentSelectItemName` from the SDK, which may be empty. Reset `focusedIdx = 0` on every list rebuild.
+- **Resolve item names from local list** — store the current list items in a local `currentListItems` array (updated in `updateListData`). On each event, look up the name as `currentListItems[idx]` rather than trusting `currentSelectItemName` from the SDK, which may be empty. Reset `focusedIdx = 0` on every list rebuild (pass `preserveFocus = true` from PLAYING-state handlers to prevent resetting focus when only toggling the play/pause label).
 - **HMR duplicate handlers** — on Vite hot-reload the bridge instance persists but the module re-runs, stacking a second `onEvenHubEvent` listener. Store the unsubscribe function in a module-level variable and call it in `import.meta.hot.dispose()`.
+- **`rebuildPageContainer` resets SDK list selection to item 0** — avoid calling it in Step/Back handlers when the list content is unchanged (i.e. already paused). Only rebuild when content actually changes (e.g. ⏸ Pause → ▶ Play toggle).
+- **Double-click arrives as `sysEvent`**, not `listEvent` — check `event.sysEvent?.eventType === OsEventTypeList.DOUBLE_CLICK_EVENT` before the `if (!event.listEvent) return` guard.
 
 ### Optional
 - [ ] Write active `gig_id` + `song_id` to `now_playing` during playback for external visibility
