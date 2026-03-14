@@ -77,11 +77,11 @@ select.html?job=X&songId=X
 - [x] `select.html`: padding preview dotted lines update live as sliders change
 - [x] `select.html`: BPM, bars, and beats/bar pre-filled from song metadata passed via sessionStorage
 - [x] `select.html`: dismiss (×) button on each auto-detected stave box to hide bad detections without blocking manual clicks
-- [x] `select.html`: click a scroll-order entry to select it; ↑↓ nudge buttons appear on the selected entry only; nudge moves crop 1 px per click; padding preview updates immediately
+- [x] `select.html`: ↑↓ nudge buttons rendered directly on the stave rectangle in the SVG overlay (top-left and bottom-left corners of the selected stave); nudge moves all four crop coords (top/bottom/lineTop/lineBottom) by 2 px per click; the rectangle redraws immediately from the nudged coords; padding preview (dotted lines) updates immediately
 - [x] `index.html`: song card shows `tempo`, `beats_in_scroll`, and the list of existing `parts` (label badges + small thumbnail previews, clickable to open imageUrl)
 - [x] `index.html`: song edit form includes editable `tempo` and `measures` fields (saved via Supabase update)
 - [x] `index.html`: "Create Strip" button on each song card → `upload.html?songId=<id>`
-- [x] `index.html`: setlist view shows strip indicator (green badges) for each song in the setlist; all songs always show a `+ Strip` link → `upload.html?songId=X&returnTo=setlist&gigId=Y`
+- [x] `index.html`: setlist view shows strip indicator (green badges, clickable links when `imageUrl` present) for each song in the setlist; songs with `imageUrl` parts also show inline thumbnail `<img>` previews (36px tall); all songs always show a `+ Strip` link → `upload.html?songId=X&returnTo=setlist&gigId=Y`
 
 ## Open Questions
 - None currently.

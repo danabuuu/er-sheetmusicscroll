@@ -127,7 +127,7 @@ Current schema (Postgres via Supabase):
 - [x] **Song card**: show existing `parts` strips as label badges + small thumbnail previews; show `tempo` and `beats_in_scroll` values
 - [x] **Song edit form**: add editable `tempo` and `measures` (beats_in_scroll) fields; saved via Supabase update
 - [x] **"Create Strip" button** on each song card → opens `upload.html?songId=<id>`
-- [x] **Setlist view**: for each song in a setlist, show a strip-status indicator (green pill = has strips, grey = none)
+- [x] **Setlist view**: for each song in a setlist, show strip-status badges (green clickable links when `imageUrl` present, plain green label if not) and inline thumbnail previews (36px) for parts that have an `imageUrl`; "+ Strip" link always visible
 - [x] Back-navigation throughout: upload → library, select → library
 
 #### Cleanup (after Bandtracker has parity)
