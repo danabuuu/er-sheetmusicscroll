@@ -607,19 +607,25 @@ async function main(): Promise<void> {
           break;
         case '→ Step':
           if (scrollPixels) {
+            const wasPlayingStep = playing;
             playing = false;
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
             xOffset = Math.min(xOffset + PIXELS_PER_BEAT, scrollW - PIXELS_PER_BEAT);
             void sendFrame();
-            void updateListData(playingControls(), true);
+            // Only rebuild if the list changed (was playing → now paused swaps ⏸ Pause → ▶ Play)
+            // Rebuilding when already paused resets SDK selection to item 0
+            if (wasPlayingStep) void updateListData(playingControls(), true);
           }
           break;
         case '← Back':
-          playing = false;
-          if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
-          void sendFrame();
-          void updateListData(playingControls(), true);
+          {
+            const wasPlayingBack = playing;
+            playing = false;
+            if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+            xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
+            void sendFrame();
+            if (wasPlayingBack) void updateListData(playingControls(), true);
+          }
           break;
       }
     }
