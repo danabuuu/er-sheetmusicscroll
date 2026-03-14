@@ -527,9 +527,8 @@ async function main(): Promise<void> {
         playing = false;
         if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
         appState = AppState.CONFIRM_EXIT;
-        setStatus('Return to menu?');
-        void updateListData(['← No', '✓ Yes']);
-        focusedIdx = 0;
+        void updateListData(['Return to menu?', '← No', '✓ Yes']);
+        focusedIdx = 1; // default: ← No
       }
       lastClickTime = 0;
       return;
@@ -560,10 +559,8 @@ async function main(): Promise<void> {
         playing = false;
         if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
         appState = AppState.CONFIRM_EXIT;
-        setStatus('Return to menu?');
-        // Only 2 items so SDK default-focuses item 0 (← No) — safe if user clicks immediately
-        void updateListData(['← No', '✓ Yes']);
-        focusedIdx = 0;
+        void updateListData(['Return to menu?', '← No', '✓ Yes']);
+        focusedIdx = 1; // default: ← No
       }
       lastClickTime = 0;
       return;
