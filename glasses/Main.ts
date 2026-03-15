@@ -599,6 +599,7 @@ async function main(): Promise<void> {
         appState = AppState.PLAYING;
         void updateListData(playingControls());
         focusedIdx = 0; // focus → Step
+        void sendFrame();  // restore the scroll strip that was visible before the dialog
       }
 
     } else if (appState === AppState.READY) {
