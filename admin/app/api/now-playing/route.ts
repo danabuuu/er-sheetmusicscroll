@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 /**
  * GET /api/now-playing
- * Returns the currently queued song (scroll_url, tempo, title).
+ * Returns the currently queued song (tempo, title, parts).
  * The glasses app polls this on startup and after each song ends.
  *
  * PUT /api/now-playing  { songId: number }
@@ -13,7 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('now_playing')
-    .select('song_id, songs(id, title, artist, tempo, scroll_url, beats_in_scroll)')
+    .select('song_id, songs(id, title, artist, tempo, beats_in_scroll, parts)')
     .limit(1)
     .maybeSingle();
 

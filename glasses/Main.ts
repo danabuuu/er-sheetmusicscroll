@@ -86,7 +86,6 @@ interface SetlistSong {
   title: string;
   artist: string | null;
   tempo: number | null;
-  scroll_url: string | null;
   beats_in_scroll: number | null;
   parts: SongPart[] | null;
 }
@@ -116,7 +115,7 @@ async function fetchSetlistSongs(gigId: number): Promise<SetlistSong[]> {
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/setlist_items` +
-      `?select=position,songs(id,title,tempo,scroll_url,beats_in_scroll,parts)` +
+      `?select=position,songs(id,title,tempo,beats_in_scroll,parts)` +
       `&gig_id=eq.${gigId}&order=position`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
     );
@@ -129,11 +128,12 @@ async function fetchSetlistSongs(gigId: number): Promise<SetlistSong[]> {
 }
 
 function resolveScrollUrl(song: SetlistSong, selectedPart: string | null): string | null {
-  if (selectedPart && Array.isArray(song.parts)) {
-    const part = song.parts.find(p => p.label === selectedPart);
+  if (Array.isArray(song.parts)) {
+    const label = selectedPart ?? CANONICAL_PARTS[0];
+    const part = song.parts.find(p => p.label === label) ?? song.parts[0];
     if (part?.imageUrl) return part.imageUrl;
   }
-  return song.scroll_url;
+  return null;
 }
 
 const CANONICAL_PARTS = ['S', 'A', 'T', 'B'] as const;

@@ -74,7 +74,7 @@ Current schema (Postgres via Supabase):
 
 | Table | Columns | Notes |
 |-------|---------|-------|
-| `songs` | `id`, `title`, `artist`, `tempo`, `scroll_url`, `beats_in_scroll`, `parts`, `created_at` | `artist` optional. `scroll_url` is the legacy single-part URL (fallback). `parts` is a JSONB array `[{ label: string, imageUrl: string }]` for multi-voice support (e.g. S/A/T/B). |
+| `songs` | `id`, `title`, `artist`, `tempo`, `beats_in_scroll`, `parts`, `created_at` | `artist` optional. `parts` is a JSONB array `[{ label: string, imageUrl: string }]` for multi-voice support (S/A/T/B). |
 | `now_playing` | `id` (always 1), `song_id`, `gig_id` | Written by the glasses when a gig or song is selected; readable externally. |
 | `gigs` | `id`, `name`, `venue`, `date`, `time`, `notes` | Created and managed by BandTracker. |
 | `setlist_items` | `gig_id`, `song_id`, `position` | Ordered list of songs per gig. Created and managed by BandTracker. |
@@ -92,11 +92,11 @@ Current schema (Postgres via Supabase):
 - [x] `admin/.env.example` documenting required env vars
 - [ ] Store intermediate job files (PDF + page PNGs) in Supabase Storage (`jobs` bucket) instead of local disk — required for Vercel's stateless/ephemeral environment
 - [ ] Remove UI pages (`/upload`, `/select`) from `admin/` — UI has moved to Bandtracker _(do after Bandtracker has parity)_
-- [ ] Set up database schema: `songs` (id, title, artist, tempo, scroll_url, beats_in_scroll, created_at), `now_playing` (id, song_id) — **currently managed directly in Supabase dashboard; no migration script yet**
+- [ ] Set up database schema: `songs` (id, title, artist, tempo, beats_in_scroll, parts, created_at), `now_playing` (id, song_id) — **currently managed directly in Supabase dashboard**
 - [ ] `POST /api/analyze` — saves PDF to Supabase Storage (`jobs` bucket), renders pages, stores page PNGs in Supabase Storage; returns job ID
 - [x] `GET /api/pages/[jobId]/[pageIndex]` — serves cached page PNG
 - [x] `POST /api/detect-staff` — manual staff grab at click Y
-- [x] `POST /api/build` — builds scroll PNG, uploads to Supabase Storage, updates `songs.scroll_url`
+- [x] `POST /api/build` — builds scroll PNG, uploads to Supabase Storage, updates `songs.parts` JSONB
 - [x] `GET /api/songs` — returns all songs from DB
 - [x] `GET /api/now-playing` / `PUT /api/now-playing` — gets/sets the currently queued song
 - [ ] `POST /api/songs` — create a new song with title, artist, tempo

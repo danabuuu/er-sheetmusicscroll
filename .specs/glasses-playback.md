@@ -16,7 +16,7 @@
 - Otherwise display the unique part labels as a controls list (e.g. "S", "A", "T", "B"); user selects their voice part
 - "← Back to gigs" returns to the idle/selection state
 - The selected part label is stored and used when resolving each song's scroll URL during playback
-- If a song has no part matching the selected label, fall back to `scroll_url` (legacy single-part field); if that is also null, skip the song
+- If a song has no part matching the selected label, fall back to the first available part in the song's `parts` array; if `parts` is empty, skip the song
 
 ### Ready state
 - After the user selects a part (or the part-selection state was skipped), resolve the scroll URL for the first song using the selected part label
@@ -33,7 +33,7 @@
 - BPM changes are reflected immediately and shown in the HTML status line
 - When one scroll image ends during auto-play, the app automatically loads the next song in the setlist; stepping forward past the last frame also advances to the next song
 - When the last song ends, the app returns to the idle/selection state and shows "Setlist complete"
-- If a song has no `scroll_url` it is skipped
+- Songs without any entry in `parts` are skipped
 - **Double-click in PLAYING**: shows the confirm-exit dialog (see below)
 
 ### Confirm exit state

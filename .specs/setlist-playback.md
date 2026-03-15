@@ -11,7 +11,7 @@ BandTracker manages setlists ("gigs") in the same Supabase project (`yhchfhhdrfc
 ```
 gigs           { id, name, venue, date, time, notes }
 setlist_items  { gig_id, song_id, position }
-songs          { id, title, tempo, scroll_url, beats_in_scroll, ... }  ← shared table
+songs          { id, title, tempo, beats_in_scroll, parts, ... }  ← shared table
 ```
 
 ## Requirements
@@ -22,7 +22,7 @@ songs          { id, title, tempo, scroll_url, beats_in_scroll, ... }  ← share
 - Songs play sequentially: when one scroll ends, the next loads automatically without any admin input
 - Playback controls (Play / Pause / +BPM / -BPM / → Step / ← Back) work as described in `glasses-playback.md`
 - When the last song ends the app returns to the gig selection state and shows "Setlist complete"
-- Songs without a `scroll_url` are skipped
+- Songs without any entry in `parts` are skipped
 
 ## UX Flow
 
@@ -40,7 +40,7 @@ Glasses app — part selection state
   → enterReady()
 
 Glasses app — ready state
-  Resolve first song's scroll URL: parts.find(p => p.label === selectedPart)?.imageUrl ?? scroll_url
+  Resolve first song's scroll URL: parts.find(p => p.label === selectedPart)?.imageUrl ?? parts[0]?.imageUrl
   Pre-fetch scroll PNG → show preview in image containers
   Controls list: ["▶ Start", "← Back"]
   User selects "▶ Start" → begin playback from song 0
@@ -61,9 +61,8 @@ supabase.from('gigs').select('id, name, venue, date').order('date', { ascending:
 
 // Fetch ordered songs for a gig
 supabase.from('setlist_items')
-  .select('position, songs(id, title, tempo, scroll_url, beats_in_scroll)')
+  .select('position, songs(id, title, tempo, beats_in_scroll, parts)')
   .eq('gig_id', gigId)
-  .not('songs.scroll_url', 'is', null)
   .order('position')
 ```
 
@@ -90,9 +89,9 @@ ALTER TABLE now_playing ADD COLUMN gig_id integer;
 - [x] IDLE `onEvenHubEvent`: selecting index N → `selectGig(gigs[N].id)`; set state PART_SELECT immediately before awaiting fetch to prevent re-entrancy
 - [x] `selectGig(gigId)`: show "Loading…" in list immediately; fetch songs; collect unique part labels; if ≤1 label skip to `enterReady(selectedPart)`; else populate part list + "← Back to gigs", set state PART_SELECT
 - [x] PART_SELECT `onEvenHubEvent`: selecting a label → `enterReady(label)`; "← Back to gigs" → return to IDLE
-- [x] `enterReady(selectedPart)`: show song loading indicator immediately; resolve first song's scroll URL via `parts.find(p => p.label === selectedPart)?.imageUrl ?? scroll_url`; pre-load PNG; `updateListData(['▶ Start', '← Back'])`, set state READY
+- [x] `enterReady(selectedPart)`: show song loading indicator immediately; resolve first song's scroll URL via `parts.find(p => p.label === selectedPart)?.imageUrl ?? parts[0]?.imageUrl`; pre-load PNG; `updateListData(['▶ Start', '← Back'])`, set state READY
 - [x] READY `onEvenHubEvent`: "▶ Start" → `playSetlistFrom(songs, 0)`; "← Back" → back to PART_SELECT (or IDLE if skipped)
-- [x] `resolveScrollUrl(song, selectedPart)` — helper: find matching part URL or fall back to `scroll_url`; return null if neither exists (song will be skipped)
+- [x] `resolveScrollUrl(song, selectedPart)` — helper: find matching part URL or fall back to `parts[0].imageUrl`; return null if parts is empty (song will be skipped)
 - [x] `playSetlistFrom(songs, index)` — resolve URL, load, start tick loop; on scroll end call `playSetlistFrom(songs, index + 1)`; when exhausted: set status "Setlist complete", return to IDLE
 - [x] PLAYING `onEvenHubEvent`: Play / Pause / +BPM / -BPM / → Step / ← Back (see `glasses-playback.md`)
 - [x] Double-click gesture: detected via `sysEvent.eventType === DOUBLE_CLICK_EVENT` or two clicks within 350 ms; shows a confirm-exit dialog in PLAYING state

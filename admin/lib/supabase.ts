@@ -15,7 +15,6 @@ export interface Song {
   title: string;
   artist: string | null;
   tempo: number | null;
-  scroll_url: string | null;
   beats_in_scroll: number | null;
 }
 
