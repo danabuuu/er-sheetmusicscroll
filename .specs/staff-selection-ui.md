@@ -9,7 +9,7 @@
 - A progress indicator shows how many systems have been selected out of the total (e.g. "12 / 18 systems selected")
 - **Manual staff grab**: automated detection does not always find every staff. If a system is missing or a staff was not outlined, the user can click anywhere on the page image outside a detected bounding box; the app infers the staff at that vertical position (using the same horizontal-projection detection on a narrow horizontal slice around the click point) and adds it as a selection for the nearest system.
 - **Multiple voice parts are built one at a time in a serial workflow.** The user completes a full selection pass for one part, builds its scroll image, confirms it looks correct, and then moves on to the next part. There is no side-by-side multi-part editing panel.
-- Each part has a short user-editable label. Common values are `S`, `A`, `T`, `B` (and split-section variants `S1`, `S2`, `A1`, `A2`, `T1`, `T2`, `B1`, `B2`). The label field is pre-filled with the next default in `S → A → T → B` order; beyond four it defaults to "Part N".
+- Each part has a short user-editable label chosen from a fixed set: **S, A, T, B** (Soprano, Alto, Tenor, Bass), presented in that order as a dropdown. No free-text entry. When "Build & Add Part" succeeds, the dropdown auto-advances to the next unused label in S→A→T→B order.
 - **"Build & Add Part"** builds the scroll, saves the part, clears all stave selections, and stays on the select page so the user can immediately begin selecting the next part's staves.
 - **"Build & Finish"** builds the scroll, saves the part, and navigates back to `index.html` (the song library). The processing window closes conceptually and the user lands on their song library.
 - Because parts are built independently, each part can have its own vertical padding setting, and the same staff position can be selected for more than one part across different systems without conflict.
@@ -71,7 +71,7 @@ select.html?job=X&songId=X
 - [x] `upload.html`: pass `beats_in_scroll` from song metadata through sessionStorage so select.html can pre-fill Bars field
 - [x] `select.html`: fetch page images; SVG overlay; staff selection; padding preview dotted lines
 - [x] `select.html`: clicking outside detected boxes calls `POST /api/detect-staff` (green dashed); fallback to size-estimated box on 404
-- [x] `select.html`: sidebar — ordered scroll list, each entry removable; BPM + label + measures fields
+- [x] `select.html`: sidebar — ordered scroll list, each entry removable; BPM + **part label dropdown (S/A/T/B, auto-advances to next unused on "Build & Add Part")** + measures fields
 - [x] `select.html`: **"Build & Finish"** navigates to `index.html` after a successful build (or back to the originating setlist if `returnTo=setlist`)
 - [x] `select.html`: **"Build & Add Part"** clears selections and stays on the page (true loop)
 - [x] `select.html`: padding preview dotted lines update live as sliders change

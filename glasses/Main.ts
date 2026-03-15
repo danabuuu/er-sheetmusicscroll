@@ -136,15 +136,15 @@ function resolveScrollUrl(song: SetlistSong, selectedPart: string | null): strin
   return song.scroll_url;
 }
 
+const CANONICAL_PARTS = ['S', 'A', 'T', 'B'] as const;
+
 function uniquePartLabels(songs: SetlistSong[]): string[] {
-  const seen = new Set<string>();
-  const labels: string[] = [];
+  const present = new Set<string>();
   for (const song of songs) {
-    for (const p of song.parts ?? []) {
-      if (!seen.has(p.label)) { seen.add(p.label); labels.push(p.label); }
-    }
+    for (const p of song.parts ?? []) present.add(p.label);
   }
-  return labels;
+  // Return only canonical labels, in S→A→T→B order
+  return CANONICAL_PARTS.filter(l => present.has(l));
 }
 
 /**

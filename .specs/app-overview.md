@@ -7,7 +7,7 @@
 - User can attach metadata to a song: title, optional artist, playback tempo (BPM), and total beats in the scroll image
 - User can rename or delete songs in their library
 - User can create setlists (gigs) in Bandtracker by selecting songs and ordering them
-- On the glasses, the user browses available setlists (gigs), selects one, and waits to start until they press a button
+- On the glasses, the user browses available setlists (gigs), selects one, and if the setlist contains songs with more than one voice part (S/A/T/B), is prompted to choose which part to display; only songs matching that part are played
 - During playback, the music scrolls horizontally across the Even Realities G2 glasses display; the user can choose auto-advance (driven by BPM + beats timing) or manual step-through (forward/back via ring or temple gesture)
 - User can pause playback and adjust tempo on the fly during a session
 - When one song ends, the next song in the setlist loads and plays automatically
