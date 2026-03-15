@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           .getPublicUrl(filePath);
         scrollUrl = publicUrl;
 
-        const updates: Record<string, unknown> = { scroll_url: scrollUrl };
+        const updates: Record<string, unknown> = {};
         const tempoNum = typeof tempo === 'number' ? tempo : (typeof tempo === 'string' ? parseInt(tempo, 10) : NaN);
         if (!isNaN(tempoNum) && tempoNum > 0) updates.tempo = tempoNum;
         const beatsNum = typeof beatsInScroll === 'number' ? beatsInScroll : (typeof beatsInScroll === 'string' ? parseInt(beatsInScroll, 10) : NaN);
