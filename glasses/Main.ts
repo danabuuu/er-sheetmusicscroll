@@ -11,8 +11,8 @@
  *   - Image container R [192×100] at (384, 188) — right third
  *
  * State machine:
- *   IDLE        → List shows gigs; selecting one calls selectGig()
- *   PART_SELECT → List shows unique part labels across the setlist; selecting one calls enterReady()
+ *   IDLE        → List shows voice parts (S / A / T / B)
+ *   GIG_SELECT  → List shows gigs that have ≥1 song with the chosen voice
  *   READY       → List shows [▶ Start, ← Back]; first song pre-fetched as preview
  *   PLAYING     → List shows [▶ Play, ⏸ Pause, + BPM, - BPM, → Step, ← Back]; tick loop running
  */
@@ -66,7 +66,7 @@ const ID_SCROLL_RIGHT = 4;
 const ID_CONTROLS     = 2;
 
 // State machine
-const enum AppState { IDLE, PART_SELECT, READY, PLAYING, CONFIRM_EXIT }
+const enum AppState { IDLE, GIG_SELECT, READY, PLAYING, CONFIRM_EXIT }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -127,10 +127,15 @@ async function fetchSetlistSongs(gigId: number): Promise<SetlistSong[]> {
   }
 }
 
-function resolveScrollUrl(song: SetlistSong, selectedPart: string | null): string | null {
+function resolveScrollUrl(song: SetlistSong, voice: string | null): string | null {
+  if (Array.isArray(song.parts) && voice) {
+    // Match by voice prefix (S/A/T/B) — ignores 1R/2R distinction
+    const part = song.parts.find(p => p.label.charAt(0) === voice && p.imageUrl);
+    if (part?.imageUrl) return part.imageUrl;
+  }
+  // Fallback: any part with an image
   if (Array.isArray(song.parts)) {
-    const label = selectedPart ?? CANONICAL_PARTS[0];
-    const part = song.parts.find(p => p.label === label) ?? song.parts[0];
+    const part = song.parts.find(p => p.imageUrl);
     if (part?.imageUrl) return part.imageUrl;
   }
   return null;
@@ -236,8 +241,7 @@ async function main(): Promise<void> {
 
   let gigs          : Gig[] = [];
   let setlistSongs  : SetlistSong[] = [];
-  let selectedPart  : string | null = null;
-  let partSkipped   = false;
+  let selectedVoice : string | null = null;  // 'S' | 'A' | 'T' | 'B'
   let currentGigId  : number | null = null;
 
   // Pre-fetch cache: key = URL, value = decoded pixel data
@@ -401,40 +405,49 @@ async function main(): Promise<void> {
     playing = false;
     if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
     scrollPixels = null;
-    setStatus('Select a setlist');
-    gigs = await fetchGigs();
+    selectedVoice = null;
+    gigs = await fetchGigs(); // pre-fetch in background for speed
+    setStatus('Select your voice part');
+    await updateListData(['S', 'A', 'T', 'B']);
+  }
+
+  async function enterGigSelect(): Promise<void> {
+    appState = AppState.GIG_SELECT;
+    setStatus('Loading setlists…');
+    await updateListData(['Loading…']);
+    if (gigs.length === 0) gigs = await fetchGigs();
     if (gigs.length === 0) {
       setStatus('No setlists found');
-      await updateListData(['(no setlists)']);
+      await updateListData(['(no setlists)', '← Back']);
       return;
     }
-    await updateListData(gigs.map(g => g.name + (g.date ? ` (${g.date})` : '')));
+    // We can't filter by voice without loading every setlist, so show all gigs.
+    // Songs with no matching voice part are skipped automatically during playback.
+    setStatus(`${selectedVoice} — select setlist`);
+    await updateListData([...gigs.map(g => g.name + (g.date ? ` (${g.date})` : '')), '← Back']);
   }
 
   async function selectGig(gigId: number): Promise<void> {
-    // Set state immediately so IDLE handler can't fire again while we await
-    appState = AppState.PART_SELECT;
+    appState = AppState.READY; // lock state while loading
     currentGigId = gigId;
     setStatus('Loading setlist…');
     await updateListData(['Loading…']);
     setlistSongs = await fetchSetlistSongs(gigId);
-    console.log('[scroll] fetchSetlistSongs returned', setlistSongs.length, 'songs for gig', gigId);
     if (setlistSongs.length === 0) {
       setStatus('Setlist is empty');
       await updateListData(['(empty setlist)', '← Back']);
       return;
     }
-    const labels = uniquePartLabels(setlistSongs);
-    if (labels.length <= 1) {
-      selectedPart = labels[0] ?? null;
-      partSkipped = true;
-      await enterReady();
-    } else {
-      partSkipped = false;
-      appState = AppState.PART_SELECT;
-      await updateListData([...labels, '← Back to gigs']);
-      setStatus('Select your part');
+    // Check at least one song has the selected voice
+    const hasVoice = setlistSongs.some(s =>
+      Array.isArray(s.parts) && s.parts.some(p => p.imageUrl && p.label.charAt(0) === selectedVoice)
+    );
+    if (!hasVoice) {
+      setStatus(`No ${selectedVoice} parts in this setlist`);
+      await updateListData([`No ${selectedVoice} parts here`, '← Back']);
+      return;
     }
+    await enterReady();
   }
 
   async function enterReady(): Promise<void> {
@@ -442,7 +455,7 @@ async function main(): Promise<void> {
     const firstSong = setlistSongs[0];
     await updateListData([firstSong ? `Loading: ${firstSong.title}…` : 'Loading…']);
     if (firstSong) {
-      const url = resolveScrollUrl(firstSong, selectedPart);
+      const url = resolveScrollUrl(firstSong, selectedVoice);
       console.log('[scroll] enterReady firstSong:', firstSong.title, 'url:', url);
       if (url) {
         setStatus(`Ready: ${firstSong.title}`);
@@ -456,7 +469,7 @@ async function main(): Promise<void> {
           // Pre-fetch second song in background
           const second = setlistSongs[1];
           if (second) {
-            const u = resolveScrollUrl(second, selectedPart);
+            const u = resolveScrollUrl(second, selectedVoice);
             if (u) void fetchScrollPixelsCached(u);
           }
         }
@@ -474,7 +487,7 @@ async function main(): Promise<void> {
       return;
     }
     const song = songs[index];
-    const url = resolveScrollUrl(song, selectedPart);
+    const url = resolveScrollUrl(song, selectedVoice);
     if (!url) {
       void playSetlistFrom(songs, index + 1);
       return;
@@ -502,7 +515,7 @@ async function main(): Promise<void> {
     // Pre-fetch next song in background while this one plays
     const next = songs[index + 1];
     if (next) {
-      const nextUrl = resolveScrollUrl(next, selectedPart);
+      const nextUrl = resolveScrollUrl(next, selectedVoice);
       if (nextUrl) void fetchScrollPixelsCached(nextUrl);
     }
   }
@@ -576,19 +589,17 @@ async function main(): Promise<void> {
     console.log('[scroll] resolved name:', JSON.stringify(name), 'idx:', idx, 'focusedIdx:', focusedIdx, 'listLen:', currentListItems.length);
 
     if (appState === AppState.IDLE) {
-      if (idx >= 0 && idx < gigs.length) {
-        void selectGig(gigs[idx].id);
+      const voices = ['S', 'A', 'T', 'B'];
+      if (idx >= 0 && idx < voices.length) {
+        selectedVoice = voices[idx];
+        void enterGigSelect();
       }
 
-    } else if (appState === AppState.PART_SELECT) {
-      if (name === '← Back to gigs') {
+    } else if (appState === AppState.GIG_SELECT) {
+      if (name === '← Back') {
         void enterIdle();
-      } else {
-        const labels = uniquePartLabels(setlistSongs);
-        if (labels.includes(name)) {
-          selectedPart = name;
-          void enterReady();
-        }
+      } else if (idx >= 0 && idx < gigs.length) {
+        void selectGig(gigs[idx].id);
       }
 
     } else if (appState === AppState.CONFIRM_EXIT) {
@@ -606,13 +617,10 @@ async function main(): Promise<void> {
       if (name === '▶ Start') {
         void playSetlistFrom(setlistSongs, 0);
       } else if (name === '← Back') {
-        if (partSkipped) {
-          void enterIdle();
+        if (currentGigId !== null) {
+          void enterGigSelect();
         } else {
-          appState = AppState.PART_SELECT;
-          const labels = uniquePartLabels(setlistSongs);
-          void updateListData([...labels, '← Back to gigs']);
-          setStatus('Select your part');
+          void enterIdle();
         }
       }
 
