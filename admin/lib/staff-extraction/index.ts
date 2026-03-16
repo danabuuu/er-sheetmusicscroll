@@ -490,7 +490,10 @@ export async function buildScrollImage(
   const strips: Buffer[] = [];
   for (const staffBox of selectedStaves) {
     const imageHeight = await getPageHeight(staffBox.pageIndex);
-    const cropBox = expandedCropBox(staffBox, imageHeight, padAbove, padBelow);
+    // Use per-stave pad if provided, otherwise fall back to global params.
+    const effectivePadAbove = staffBox.padAbove ?? padAbove;
+    const effectivePadBelow = staffBox.padBelow ?? padBelow;
+    const cropBox = expandedCropBox(staffBox, imageHeight, effectivePadAbove, effectivePadBelow);
     const strip = await extractStrip(getPageImage(staffBox.pageIndex), cropBox);
     strips.push(strip);
   }

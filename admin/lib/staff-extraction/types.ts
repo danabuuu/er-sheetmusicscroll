@@ -3,6 +3,10 @@ export interface StaffBox {
    * post-auto-trim strip width to additionally remove from each side. */
   cropLeft?: number;
   cropRight?: number;
+  /** Optional per-strip vertical padding overrides (multiples of staff height).
+   * When set, these override the global padAbove/padBelow passed to buildScrollImage. */
+  padAbove?: number;
+  padBelow?: number;
   /** Padded render bounds — used for image cropping */
   top: number;
   bottom: number;
