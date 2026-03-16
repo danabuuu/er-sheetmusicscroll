@@ -136,7 +136,7 @@ function resolveScrollUrl(song: SetlistSong, selectedPart: string | null): strin
   return null;
 }
 
-const CANONICAL_PARTS = ['S', 'A', 'T', 'B'] as const;
+const CANONICAL_PARTS = ['S 1R', 'S 2R', 'A 1R', 'A 2R', 'T 1R', 'T 2R', 'B 1R', 'B 2R'] as const;
 
 function uniquePartLabels(songs: SetlistSong[]): string[] {
   const present = new Set<string>();

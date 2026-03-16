@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         const { data: { publicUrl } } = supabaseAdmin.storage
           .from(BUCKET)
           .getPublicUrl(filePath);
-        scrollUrl = publicUrl;
+        scrollUrl = `${publicUrl}?t=${Date.now()}`;
 
         const updates: Record<string, unknown> = {};
         const tempoNum = typeof tempo === 'number' ? tempo : (typeof tempo === 'string' ? parseInt(tempo, 10) : NaN);
