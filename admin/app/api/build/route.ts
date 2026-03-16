@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
   try {
     mkdirSync(tmpDir, { recursive: true });
     writeFileSync(tmpPdf, pdfBuffer);
-
-    const selectedStaves = staves as StaffBox[];
+  // cropLeft/cropRight are passed through transparently on each StaffBox.
+  const selectedStaves = staves as StaffBox[];
     const rowCount: 1 | 2 = rows === 2 ? 2 : 1;
     const padA = typeof padAbove === 'number' ? padAbove : DEFAULT_PAD_ABOVE;
     const padB = typeof padBelow === 'number' ? padBelow : DEFAULT_PAD_BELOW;

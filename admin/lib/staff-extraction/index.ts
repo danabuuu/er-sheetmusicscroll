@@ -296,9 +296,19 @@ export async function extractStrip(imageBuffer: Buffer, staffBox: StaffBox): Pro
     if (darkCount >= minDarkRows) { right = x; break; }
   }
 
-  const trimLeft  = Math.max(0, left - HORIZ_PAD);
-  const trimRight = Math.min(width - 1, right + HORIZ_PAD);
-  const trimWidth = trimRight - trimLeft + 1;
+  let trimLeft  = Math.max(0, left - HORIZ_PAD);
+  let trimRight = Math.min(width - 1, right + HORIZ_PAD);
+  let trimWidth = trimRight - trimLeft + 1;
+
+  // Apply any manual per-strip horizontal crop on top of auto-trim.
+  // cropLeft / cropRight are fractions of the trimmed width (0–0.5).
+  if (staffBox.cropLeft && staffBox.cropLeft > 0) {
+    trimLeft  = Math.round(trimLeft + trimWidth * staffBox.cropLeft);
+  }
+  if (staffBox.cropRight && staffBox.cropRight > 0) {
+    trimRight = Math.round(trimRight - trimWidth * staffBox.cropRight);
+  }
+  trimWidth = Math.max(1, trimRight - trimLeft + 1);
 
   // Step 3: apply horizontal trim and resize to target height
   return sharp(imageBuffer)

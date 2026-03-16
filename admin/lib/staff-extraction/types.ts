@@ -1,4 +1,8 @@
 export interface StaffBox {
+  /** Optional manual horizontal crop, expressed as a fraction (0–0.5) of the
+   * post-auto-trim strip width to additionally remove from each side. */
+  cropLeft?: number;
+  cropRight?: number;
   /** Padded render bounds — used for image cropping */
   top: number;
   bottom: number;
