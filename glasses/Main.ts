@@ -234,6 +234,7 @@ async function main(): Promise<void> {
   let scrollH       = 0;
 
   let gigs          : Gig[] = [];
+  let visibleGigs   : Gig[] = [];  // gigs filtered to those with ≥1 strip for selectedVoice
   let setlistSongs  : SetlistSong[] = [];
   let selectedVoice : string | null = null;  // 'S' | 'A' | 'T' | 'B'
   let currentGigId  : number | null = null;
@@ -415,10 +416,22 @@ async function main(): Promise<void> {
       await updateListData(['(no setlists)', '← Back']);
       return;
     }
-    // We can't filter by voice without loading every setlist, so show all gigs.
-    // Songs with no matching voice part are skipped automatically during playback.
+    // Fetch all setlists in parallel to filter by selected voice.
+    setStatus(`${selectedVoice} — loading…`);
+    await updateListData(['Filtering setlists…']);
+    const songLists = await Promise.all(gigs.map(g => fetchSetlistSongs(g.id)));
+    visibleGigs = gigs.filter((_, i) =>
+      songLists[i].some(s =>
+        Array.isArray(s.parts) && s.parts.some(p => p.imageUrl && p.label.charAt(0) === selectedVoice)
+      )
+    );
+    if (visibleGigs.length === 0) {
+      setStatus(`No setlists with ${selectedVoice} parts`);
+      await updateListData([`No ${selectedVoice} setlists`, '← Back']);
+      return;
+    }
     setStatus(`${selectedVoice} — select setlist`);
-    await updateListData([...gigs.map(g => g.name + (g.date ? ` (${g.date})` : '')), '← Back']);
+    await updateListData([...visibleGigs.map(g => g.name + (g.date ? ` (${g.date})` : '')), '← Back']);
   }
 
   async function selectGig(gigId: number): Promise<void> {
@@ -592,8 +605,8 @@ async function main(): Promise<void> {
     } else if (appState === AppState.GIG_SELECT) {
       if (name === '← Back') {
         void enterIdle();
-      } else if (idx >= 0 && idx < gigs.length) {
-        void selectGig(gigs[idx].id);
+      } else if (idx >= 0 && idx < visibleGigs.length) {
+        void selectGig(visibleGigs[idx].id);
       }
 
     } else if (appState === AppState.CONFIRM_EXIT) {
