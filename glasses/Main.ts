@@ -128,17 +128,11 @@ async function fetchSetlistSongs(gigId: number): Promise<SetlistSong[]> {
 }
 
 function resolveScrollUrl(song: SetlistSong, voice: string | null): string | null {
-  if (Array.isArray(song.parts) && voice) {
-    // Match by voice prefix (S/A/T/B) — ignores 1R/2R distinction
-    const part = song.parts.find(p => p.label.charAt(0) === voice && p.imageUrl);
-    if (part?.imageUrl) return part.imageUrl;
-  }
-  // Fallback: any part with an image
-  if (Array.isArray(song.parts)) {
-    const part = song.parts.find(p => p.imageUrl);
-    if (part?.imageUrl) return part.imageUrl;
-  }
-  return null;
+  if (!Array.isArray(song.parts) || !voice) return null;
+  // Match by voice prefix (S/A/T/B) — ignores 1R/2R distinction.
+  // Returns null if no strip exists for this voice; caller skips the song.
+  const part = song.parts.find(p => p.label.charAt(0) === voice && p.imageUrl);
+  return part?.imageUrl ?? null;
 }
 
 const CANONICAL_PARTS = ['S 1R', 'S 2R', 'A 1R', 'A 2R', 'T 1R', 'T 2R', 'B 1R', 'B 2R'] as const;
