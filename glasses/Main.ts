@@ -514,7 +514,7 @@ async function main(): Promise<void> {
     currentSongIdx = index;
     appState = AppState.PLAYING;
     playing = false;  // start paused — manual step/back is the default mode
-    await updateListData(playingControls());
+    await updateListData(playingControls(), true);
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
     xOffset += PIXELS_PER_BEAT;   // advance so the tick loop starts on column 1 (not column 0 again)
@@ -618,8 +618,8 @@ async function main(): Promise<void> {
       } else {
         // No (or anything else) — resume playing state
         appState = AppState.PLAYING;
-        void updateListData(playingControls());
-        focusedIdx = 0; // focus → Step
+        void updateListData(playingControls(), true);
+        focusedIdx = 1; // default: ← No
         void sendFrame();  // restore the scroll strip that was visible before the dialog
       }
 
