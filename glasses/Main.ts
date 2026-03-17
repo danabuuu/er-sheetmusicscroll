@@ -242,6 +242,10 @@ async function main(): Promise<void> {
   // Pre-fetch cache: key = URL, value = decoded pixel data
   const pixelCache = new Map<string, { pixels: Uint8ClampedArray; width: number; height: number }>();
 
+  // Per-song rendered frame cache: key = xOffset, value = [sliceL, sliceM, sliceR]
+  // Cleared whenever a new song loads. Pre-rendered in the background after load.
+  let frameRenderCache = new Map<number, [number[], number[], number[]]>();
+
   async function fetchScrollPixelsCached(url: string) {
     if (pixelCache.has(url)) return pixelCache.get(url)!;
     const result = await fetchScrollPixels(url);
@@ -346,13 +350,21 @@ async function main(): Promise<void> {
   }
 
   // ── Image frame helpers ────────────────────────────────────────────────────
+  async function renderFrame(x: number, pixels: Uint8ClampedArray, w: number, h: number): Promise<[number[], number[], number[]]> {
+    const cached = frameRenderCache.get(x);
+    if (cached) return cached;
+    const slices = await Promise.all([
+      extractSlice(pixels, w, h, x),
+      extractSlice(pixels, w, h, x + SOURCE_SLICE_W),
+      extractSlice(pixels, w, h, x + SOURCE_SLICE_W * 2),
+    ]) as [number[], number[], number[]];
+    frameRenderCache.set(x, slices);
+    return slices;
+  }
+
   async function sendFrame(): Promise<void> {
     if (!scrollPixels) return;
-    const [sliceL, sliceM, sliceR] = await Promise.all([
-      extractSlice(scrollPixels, scrollW, scrollH, xOffset),
-      extractSlice(scrollPixels, scrollW, scrollH, xOffset + SOURCE_SLICE_W),
-      extractSlice(scrollPixels, scrollW, scrollH, xOffset + SOURCE_SLICE_W * 2),
-    ]);
+    const [sliceL, sliceM, sliceR] = await renderFrame(xOffset, scrollPixels, scrollW, scrollH);
     await Promise.all([
       bridge.updateImageRawData(new ImageRawDataUpdate({
         containerID: ID_SCROLL_LEFT,
@@ -370,6 +382,25 @@ async function main(): Promise<void> {
         imageData: sliceR,
       })),
     ]);
+  }
+
+  /** Pre-render all frames for a song in the background, one at a time.
+   *  Aborts silently if frameRenderCache is replaced (new song loaded). */
+  async function prerenderFrames(
+    pixels: Uint8ClampedArray, w: number, h: number,
+    cache: Map<number, [number[], number[], number[]]>,
+  ): Promise<void> {
+    for (let x = 0; x < w; x += PIXELS_PER_BEAT) {
+      if (cache !== frameRenderCache) return; // song changed — abort
+      if (!cache.has(x)) {
+        const slices = await Promise.all([
+          extractSlice(pixels, w, h, x),
+          extractSlice(pixels, w, h, x + SOURCE_SLICE_W),
+          extractSlice(pixels, w, h, x + SOURCE_SLICE_W * 2),
+        ]) as [number[], number[], number[]];
+        if (cache === frameRenderCache) cache.set(x, slices);
+      }
+    }
   }
 
   function scheduleTick(): void {
@@ -505,6 +536,8 @@ async function main(): Promise<void> {
       void playSetlistFrom(songs, index + 1);
       return;
     }
+    // If the next-song pre-renderer already finished, adopt its frame cache
+    const preRendered = (result as any).__frameCache as Map<number, [number[], number[], number[]]> | undefined;
     scrollPixels = result.pixels;
     scrollW = result.width;
     scrollH = result.height;
@@ -514,17 +547,31 @@ async function main(): Promise<void> {
     currentSongIdx = index;
     appState = AppState.PLAYING;
     playing = false;  // start paused — manual step/back is the default mode
+    // Clear frame cache and eagerly pre-render frame 0 so first display is instant
+    frameRenderCache = preRendered ?? new Map();
+    const thisCache = frameRenderCache;
+    await renderFrame(0, scrollPixels, scrollW, scrollH); // blocks until frame 0 ready
     // Reset focusedIdx to 0 so local tracking matches SDK visual state (Play is item 0)
     await updateListData(playingControls());
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
-    // xOffset stays at 0 — tick advances before showing, so position is always what's displayed
-    // don't auto-play — user presses ▶ Play to start
-    // Pre-fetch next song in background while this one plays
+    // Background-render remaining frames so ticks are instant
+    void prerenderFrames(scrollPixels, scrollW, scrollH, thisCache);
+    // Pre-fetch + pre-render next song in background
     const next = songs[index + 1];
     if (next) {
       const nextUrl = resolveScrollUrl(next, selectedVoice);
-      if (nextUrl) void fetchScrollPixelsCached(nextUrl);
+      if (nextUrl) void fetchScrollPixelsCached(nextUrl).then(r => {
+        if (r && thisCache === frameRenderCache) {
+          // next song has its own cache — use a temporary one just to warm it
+          const nextCache = new Map<number, [number[], number[], number[]]>();
+          void prerenderFrames(r.pixels, r.width, r.height, nextCache).then(() => {
+            // Store under a special key in pixelCache so playSetlistFrom can use it
+            // (frames are stored in nextCache; swapped to frameRenderCache on load)
+            (r as any).__frameCache = nextCache;
+          });
+        }
+      });
     }
   }
 
