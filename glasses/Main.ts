@@ -666,7 +666,8 @@ async function main(): Promise<void> {
             } else {
               xOffset += PIXELS_PER_BEAT;
               void sendFrame();
-              void updateListData(playingControls(), !wasPlayingStep);
+              // Only rebuild if the play/pause label changed (was auto-playing)
+              if (wasPlayingStep) void updateListData(playingControls(), true);
             }
           }
           break;
@@ -677,7 +678,8 @@ async function main(): Promise<void> {
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
             xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
             void sendFrame();
-            void updateListData(playingControls(), !wasPlayingBack);
+            // Only rebuild if the play/pause label changed (was auto-playing)
+            if (wasPlayingBack) void updateListData(playingControls(), true);
           }
           break;
       }
