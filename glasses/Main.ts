@@ -514,7 +514,8 @@ async function main(): Promise<void> {
     currentSongIdx = index;
     appState = AppState.PLAYING;
     playing = false;  // start paused — manual step/back is the default mode
-    await updateListData(playingControls(), true);
+    // Reset focusedIdx to 0 so local tracking matches SDK visual state (Play is item 0)
+    await updateListData(playingControls());
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
     // xOffset stays at 0 — tick advances before showing, so position is always what's displayed
