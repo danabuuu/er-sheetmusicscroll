@@ -642,47 +642,64 @@ async function main(): Promise<void> {
         case '▶ Play':
           if (!playing && scrollPixels) {
             playing = true;
+            // Flip label to ⏸ Pause — preserve focus so SDK stays on this button
             void updateListData(playingControls(), true).then(() => sendFrame());
             scheduleTick();
           }
           break;
+
         case '⏸ Pause':
-          playing = false;
-          if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          void updateListData(playingControls(), true).then(() => sendFrame());
-          break;
-        case '+ BPM':
-          bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
-          break;
-        case '- BPM':
-          bpm = Math.max(BPM_MIN, bpm - BPM_STEP);
-          break;
-        case '→ Step':
-          if (scrollPixels) {
-            const wasPlayingStep = playing;
+          if (playing) {
             playing = false;
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-            // If already at the last frame, advance to the next song
+            // Flip label to ▶ Play — preserve focus
+            void updateListData(playingControls(), true).then(() => sendFrame());
+          }
+          break;
+
+        case '→ Step':
+          // Jump forward one screen; continue playing if already playing
+          if (scrollPixels) {
             if (xOffset + PIXELS_PER_BEAT >= scrollW) {
               setStatus('Loading next song…');
               void playSetlistFrom(setlistSongs, currentSongIdx + 1);
             } else {
               xOffset += PIXELS_PER_BEAT;
               void sendFrame();
-              // Only rebuild if the play/pause label changed (was auto-playing)
-              if (wasPlayingStep) void updateListData(playingControls(), true).then(() => sendFrame());
+              if (playing) {
+                // Reset tick from new position so next advance is a full interval away
+                if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+                scheduleTick();
+              }
             }
           }
           break;
+
         case '← Back':
-          {
-            const wasPlayingBack = playing;
-            playing = false;
+          // Jump back one screen; continue playing if already playing
+          xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
+          void sendFrame();
+          if (playing) {
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-            xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
-            void sendFrame();
-            // Only rebuild if the play/pause label changed (was auto-playing)
-            if (wasPlayingBack) void updateListData(playingControls(), true).then(() => sendFrame());
+            scheduleTick();
+          }
+          break;
+
+        case '+ BPM':
+          bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
+          setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
+          if (playing) {
+            if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+            scheduleTick();
+          }
+          break;
+
+        case '- BPM':
+          bpm = Math.max(BPM_MIN, bpm - BPM_STEP);
+          setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
+          if (playing) {
+            if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+            scheduleTick();
           }
           break;
       }
