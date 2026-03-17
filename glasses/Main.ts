@@ -381,6 +381,7 @@ async function main(): Promise<void> {
     const intervalMs = beatsPerScreen * (60 / bpm) * 1000;
     tickTimer = setTimeout(async () => {
       if (!playing) return;
+      xOffset += PIXELS_PER_BEAT;
       if (scrollPixels && xOffset >= scrollW) {
         playing = false;
         setStatus('Song ended. Loading next…');
@@ -388,7 +389,6 @@ async function main(): Promise<void> {
         return;
       }
       await sendFrame();
-      xOffset += PIXELS_PER_BEAT;
       scheduleTick();
     }, intervalMs);
   }
@@ -517,7 +517,7 @@ async function main(): Promise<void> {
     await updateListData(playingControls(), true);
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
-    xOffset += PIXELS_PER_BEAT;   // advance so the tick loop starts on column 1 (not column 0 again)
+    // xOffset stays at 0 — tick advances before showing, so position is always what's displayed
     // don't auto-play — user presses ▶ Play to start
     // Pre-fetch next song in background while this one plays
     const next = songs[index + 1];
