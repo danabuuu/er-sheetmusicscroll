@@ -593,10 +593,13 @@ async function main(): Promise<void> {
     if (rawIdx >= 0) focusedIdx = rawIdx;
     const idx = rawIdx >= 0 ? rawIdx : focusedIdx;
 
-    const name = (idx >= 0 && idx < currentListItems.length)
-      ? currentListItems[idx]
-      : (event.listEvent.currentSelectItemName ?? '');
-    console.log('[scroll] resolved name:', JSON.stringify(name), 'idx:', idx, 'focusedIdx:', focusedIdx, 'listLen:', currentListItems.length);
+    // Prioritise the name the SDK reports — it knows what's actually highlighted.
+    // Fall back to our local list (needed for dynamic items like gig names).
+    const sdkName = event.listEvent.currentSelectItemName ?? '';
+    const name = sdkName !== ''
+      ? sdkName
+      : (idx >= 0 && idx < currentListItems.length ? currentListItems[idx] : '');
+    console.log('[scroll] resolved name:', JSON.stringify(name), 'sdkName:', JSON.stringify(sdkName), 'idx:', idx, 'focusedIdx:', focusedIdx, 'listLen:', currentListItems.length);
 
     if (appState === AppState.IDLE) {
       const voiceChars = ['S', 'A', 'T', 'B'];
