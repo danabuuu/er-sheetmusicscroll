@@ -402,8 +402,8 @@ async function main(): Promise<void> {
     scrollPixels = null;
     selectedVoice = null;
     gigs = await fetchGigs(); // pre-fetch in background for speed
-    setStatus('Select your voice part');
-    await updateListData(['S', 'A', 'T', 'B']);
+    setStatus('Choose your voice part');
+    await updateListData(['Soprano', 'Alto', 'Tenor', 'Bass']);
   }
 
   async function enterGigSelect(): Promise<void> {
@@ -596,9 +596,9 @@ async function main(): Promise<void> {
     console.log('[scroll] resolved name:', JSON.stringify(name), 'idx:', idx, 'focusedIdx:', focusedIdx, 'listLen:', currentListItems.length);
 
     if (appState === AppState.IDLE) {
-      const voices = ['S', 'A', 'T', 'B'];
-      if (idx >= 0 && idx < voices.length) {
-        selectedVoice = voices[idx];
+      const voiceChars = ['S', 'A', 'T', 'B'];
+      if (idx >= 0 && idx < voiceChars.length) {
+        selectedVoice = voiceChars[idx];
         void enterGigSelect();
       }
 

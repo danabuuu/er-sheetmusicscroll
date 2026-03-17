@@ -2,28 +2,27 @@
 
 ## Requirements
 - On startup the app connects to the Even Hub SDK bridge and registers a layout of 4 containers: one controls list and three side-by-side image containers filling the full 576px display width
-- The app operates in five states: **idle/selection**, **part selection**, **ready**, **playing**, and **confirm exit** (described below)
+- The app operates in four states: **idle/voice selection**, **setlist selection**, **ready**, and **playing** (plus a **confirm exit** overlay described below)
 
-### Idle / selection state
-- On startup (and after a setlist completes), fetch the list of gigs from Supabase `gigs` table
-- Display gig names as items in the controls list; user scrolls and selects using the temple or ring gesture
-- The image containers show a welcome/instruction message or remain blank
+### Idle / voice selection state
+- On startup (and after a setlist completes or the user exits), display a status of "Choose your voice part" and show four items: **Soprano**, **Alto**, **Tenor**, **Bass**
+- The user selects their voice part using the temple or ring gesture; the selection is stored internally as the single character S / A / T / B
+- Pre-fetches the full gig list from Supabase in the background while the user is choosing
 
-### Part selection state
-- After the user selects a gig, fetch its ordered song list from `setlist_items` joined with `songs`
-- Collect all unique part labels across all songs in the setlist (from `songs.parts[].label`)
-- If only one part label exists across the whole setlist (or no song has multiple parts), skip this state and proceed directly to ready
-- Otherwise display the unique part labels as a controls list (e.g. "S", "A", "T", "B"); user selects their voice part
-- "← Back to gigs" returns to the idle/selection state
-- The selected part label is stored and used when resolving each song's scroll URL during playback
-- If a song has no part matching the selected label, fall back to the first available part in the song's `parts` array; if `parts` is empty, skip the song
+### Setlist selection state
+- After the user picks a voice part, all gigs are fetched (from cache if already loaded)
+- Each gig's setlist is fetched in parallel; only gigs that contain **at least one song with a strip for the chosen voice** are shown
+- If no gigs match, show "No [Voice] setlists" with a "← Back" item
+- Otherwise display the matching gig names in the controls list, plus a final "← Back" item
+- Selecting a gig loads its setlist; if no song has the chosen voice, shows an error and stays on this screen
+- "← Back" returns to the idle/voice selection state
 
 ### Ready state
-- After the user selects a part (or the part-selection state was skipped), resolve the scroll URL for the first song using the selected part label
+- After a gig is selected, resolve the scroll URL for the first song using the chosen voice (single-char prefix match against `parts[].label`)
 - Pre-load the first song's scroll PNG into the image containers as a preview
-- Controls list shows two items: "▶ Start" and "← Back"
+- Controls list shows: **▶ Start** and **← Back**
 - The setlist does not begin scrolling until the user explicitly selects "▶ Start"
-- "← Back" returns to part selection (or to idle if part selection was skipped)
+- "← Back" returns to setlist selection
 
 ### Playing state
 - Songs start in **manual/paused mode** — the scroll is shown at the first frame but the tick loop does not start until the user selects "▶ Play"
@@ -32,8 +31,8 @@
 - Temple and ring gestures (via Even Hub list event) trigger controls: Play, Pause, +BPM, -BPM, Step forward, Step back
 - BPM changes are reflected immediately and shown in the HTML status line
 - When one scroll image ends during auto-play, the app automatically loads the next song in the setlist; stepping forward past the last frame also advances to the next song
-- When the last song ends, the app returns to the idle/selection state and shows "Setlist complete"
-- Songs without any entry in `parts` are skipped
+- Songs with no strip for the chosen voice are **silently skipped** (no fallback to a different voice)
+- When the last song ends, the app returns to the idle/voice selection state and shows "Setlist complete"
 - **Double-click in PLAYING**: shows the confirm-exit dialog (see below)
 
 ### Confirm exit state
@@ -41,7 +40,7 @@
 - Controls list shows three items: "Return to menu?", "← No", "✓ Yes"
 - "← No" is focused by default — an accidental double-click resumes playing immediately
 - Selecting "← No" (or the title row) resumes the playing state (re-shows playing controls)
-- Selecting "✓ Yes" returns to the idle/selection state (top-level gig list)
+- Selecting "✓ Yes" returns to the idle/voice selection state
 
 ### SDK gesture constraint
 The Even Hub SDK provides no raw tap/long-press API. All temple input fires `listEvent.currentSelectItemIndex` for scroll/click events, or `sysEvent.eventType` for system gestures (including double-click). Ring gesture likely fires `listEvent` as well — handled by existing `onEvenHubEvent`; no separate mapping needed.
@@ -56,11 +55,11 @@ The Even Hub SDK provides no raw tap/long-press API. All temple input fires `lis
 | Scroll mid | 3 | `ImageContainerProperty` | 192, 188 | 192×100 |
 | Scroll right | 4 | `ImageContainerProperty` | 384, 188 | 192×100 |
 
-### Controls list — idle/selection state (dynamic)
-List items are populated from the `gigs` table at runtime. Selecting a gig item transitions to part selection state.
+### Controls list — idle/voice selection state
+List items are always: **Soprano**, **Alto**, **Tenor**, **Bass**. Selecting one stores the single-char voice code (S/A/T/B) and transitions to setlist selection state.
 
-### Controls list — part selection state (dynamic)
-List items are the unique part labels collected from the setlist (e.g. `["S", "A", "T", "B"]`), plus a final "← Back to gigs" item. Selecting a part label transitions to ready state.
+### Controls list — setlist selection state (dynamic)
+List items are populated from gigs that have at least one song with a strip for the chosen voice, plus a final "← Back" item. Selecting a gig item transitions to ready state.
 
 ### Controls list — ready state
 | Index | Label | Action |
