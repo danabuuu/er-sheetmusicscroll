@@ -639,14 +639,14 @@ async function main(): Promise<void> {
         case '▶ Play':
           if (!playing && scrollPixels) {
             playing = true;
-            void updateListData(playingControls(), true);
+            void updateListData(playingControls(), true).then(() => sendFrame());
             scheduleTick();
           }
           break;
         case '⏸ Pause':
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          void updateListData(playingControls(), true);
+          void updateListData(playingControls(), true).then(() => sendFrame());
           break;
         case '+ BPM':
           bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
@@ -667,7 +667,7 @@ async function main(): Promise<void> {
               xOffset += PIXELS_PER_BEAT;
               void sendFrame();
               // Only rebuild if the play/pause label changed (was auto-playing)
-              if (wasPlayingStep) void updateListData(playingControls(), true);
+              if (wasPlayingStep) void updateListData(playingControls(), true).then(() => sendFrame());
             }
           }
           break;
@@ -679,7 +679,7 @@ async function main(): Promise<void> {
             xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
             void sendFrame();
             // Only rebuild if the play/pause label changed (was auto-playing)
-            if (wasPlayingBack) void updateListData(playingControls(), true);
+            if (wasPlayingBack) void updateListData(playingControls(), true).then(() => sendFrame());
           }
           break;
       }
