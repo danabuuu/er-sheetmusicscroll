@@ -14,7 +14,7 @@
  *   IDLE        → List shows voice parts (S / A / T / B)
  *   GIG_SELECT  → List shows gigs that have ≥1 song with the chosen voice
  *   READY       → List shows [▶ Start, ← Back]; first song pre-fetched as preview
- *   PLAYING     → List shows [▶ Play, ⏸ Pause, + BPM, - BPM, → Step, ← Back]; tick loop running
+ *   PLAYING     → List shows [⏸ Pause / ▶ Play, → Step, ← Back, + BPM, - BPM]; tick loop running
  */
 
 import {
@@ -317,7 +317,7 @@ async function main(): Promise<void> {
 
   // Playing-state controls: Step/Back first (primary use), then play toggle, then BPM
   function playingControls(): string[] {
-    return ['→ Step', '← Back', playing ? '⏸ Pause' : '▶ Play', '+ BPM', '- BPM'];
+    return [playing ? '⏸ Pause' : '▶ Play', '→ Step', '← Back', '+ BPM', '- BPM'];
   }
 
   async function updateListData(items: string[], preserveFocus = false): Promise<void> {
@@ -549,6 +549,8 @@ async function main(): Promise<void> {
         appState = AppState.CONFIRM_EXIT;
         void updateListData(['Return to menu?', '← No', '✓ Yes']);
         focusedIdx = 1; // default: ← No
+      } else if (appState === AppState.GIG_SELECT || appState === AppState.READY) {
+        void enterIdle();
       }
       lastClickTime = 0;
       return;
@@ -574,13 +576,14 @@ async function main(): Promise<void> {
     lastClickTime = now;
 
     if (isDoubleClick) {
-      // Double-click in PLAYING → show exit confirmation
       if (appState === AppState.PLAYING) {
         playing = false;
         if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
         appState = AppState.CONFIRM_EXIT;
         void updateListData(['Return to menu?', '← No', '✓ Yes']);
         focusedIdx = 1; // default: ← No
+      } else if (appState === AppState.GIG_SELECT || appState === AppState.READY) {
+        void enterIdle();
       }
       lastClickTime = 0;
       return;
