@@ -588,8 +588,9 @@ async function main(): Promise<void> {
   _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
 
-    // Double-click can arrive as a sysEvent (no listEvent) — handle it first
-    const sysEvType = event.sysEvent?.eventType;
+    // Double-click can arrive as a sysEvent (no listEvent) — handle it first.
+    // Normalise via fromJson in case the value arrives as a string on real hardware.
+    const sysEvType = OsEventTypeList.fromJson(event.sysEvent?.eventType);
     if (sysEvType === OsEventTypeList.DOUBLE_CLICK_EVENT) {
       if (appState === AppState.PLAYING) {
         playing = false;
@@ -606,11 +607,21 @@ async function main(): Promise<void> {
 
     if (!event.listEvent) return;
     const rawIdx = event.listEvent.currentSelectItemIndex ?? -1;
-    const evType = event.listEvent.eventType;
+    // Normalise eventType — real hardware may send a string ("SCROLL_TOP_EVENT")
+    // while the simulator sends a number. OsEventTypeList.fromJson handles both.
+    const evType = OsEventTypeList.fromJson(event.listEvent.eventType);
 
-    // Scroll events just update focus — no action
+    // Scroll events just update our local focus cursor — no action.
+    // Prefer rawIdx when provided; fall back to direction-based ±1 for hardware
+    // that doesn't include the index in scroll events.
     if (evType === OsEventTypeList.SCROLL_TOP_EVENT || evType === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
-      if (rawIdx >= 0) focusedIdx = rawIdx;
+      if (rawIdx >= 0) {
+        focusedIdx = rawIdx;
+      } else if (evType === OsEventTypeList.SCROLL_TOP_EVENT) {
+        focusedIdx = Math.max(0, focusedIdx - 1);
+      } else {
+        focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
+      }
       lastClickTime = 0; // moving to a different item resets the double-click timer
       return;
     }
@@ -620,7 +631,7 @@ async function main(): Promise<void> {
     const now = Date.now();
     const isDoubleClick =
       evType === OsEventTypeList.DOUBLE_CLICK_EVENT ||
-      (now - lastClickTime < 350);
+      (now - lastClickTime < 350 && evType === OsEventTypeList.CLICK_EVENT);
     lastClickTime = now;
 
     if (isDoubleClick) {
