@@ -575,125 +575,110 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Gesture debounce (ported from even-toolkit/glasses/gestures.ts) ───────
+  // G2 hardware fires duplicate and spurious events; these constants are tuned
+  // to filter them correctly on real hardware.
+  const TAP_COOLDOWN_MS            = 220;
+  const TAP_DUPLICATE_DEBOUNCE_MS  = 90;
+  const DBL_DUPLICATE_DEBOUNCE_MS  = 140;
+  const SCROLL_SUPPRESS_AFTER_TAP  = 110;
+  const SAME_DIR_DEBOUNCE_MS       = 350;
+  const DIR_CHANGE_DEBOUNCE_MS     = 50;
+
+  let lastTapTime  = 0;
+  let lastTapKind: 'tap' | 'double' | null = null;
+  let lastScrollTime = 0;
+  let lastScrollDir: 'up' | 'down' | null = null;
+
+  function tryConsumeTap(kind: 'tap' | 'double'): boolean {
+    const now = Date.now();
+    const elapsed = now - lastTapTime;
+    const dupeMs = kind === 'double' ? DBL_DUPLICATE_DEBOUNCE_MS : TAP_DUPLICATE_DEBOUNCE_MS;
+    if (kind === lastTapKind && elapsed < dupeMs) return false;
+    if (elapsed < TAP_COOLDOWN_MS && lastTapKind !== null) return false;
+    lastTapTime = now; lastTapKind = kind;
+    return true;
+  }
+
+  function tryConsumeScroll(dir: 'up' | 'down'): boolean {
+    const now = Date.now();
+    if (now - lastTapTime < SCROLL_SUPPRESS_AFTER_TAP) return false;
+    const threshold = dir === lastScrollDir ? SAME_DIR_DEBOUNCE_MS : DIR_CHANGE_DEBOUNCE_MS;
+    if (now - lastScrollTime < threshold) return false;
+    lastScrollTime = now; lastScrollDir = dir;
+    return true;
+  }
+
   // ── Temple gesture handler ─────────────────────────────────────────────────
-  // The simulator sends currentSelectItemIndex on scroll (Up/Down) but NOT
-  // on click (idx = -1 on click events). Track the focused index ourselves
-  // and resolve the name from our local list copy.
-  //
-  // Double-click: the simulator may not emit DOUBLE_CLICK_EVENT reliably, so
-  // we detect two clicks within 350 ms manually.
+  // We use our own focusedIdx to track which item is highlighted, because:
+  //  - click events don't include currentSelectItemIndex on hardware
+  //  - currentSelectItemName is unreliable when the list hasn't been rebuilt
+  // On scroll: move focusedIdx ±1 (direction from event type).
+  // On click: dispatch currentListItems[focusedIdx].
   let focusedIdx = 0;
-  let lastClickTime = 0;
 
-  _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
-    console.log('[scroll] onEvenHubEvent:', JSON.stringify(event), 'appState:', appState);
-
-    // Double-click can arrive as a sysEvent (no listEvent) — handle it first.
-    // Normalise via fromJson in case the value arrives as a string on real hardware.
-    const sysEvType = OsEventTypeList.fromJson(event.sysEvent?.eventType);
-    if (sysEvType === OsEventTypeList.DOUBLE_CLICK_EVENT) {
-      if (appState === AppState.PLAYING) {
-        playing = false;
-        if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-        appState = AppState.CONFIRM_EXIT;
-        void updateListData(['Return to menu?', '← No', '✓ Yes']);
-        focusedIdx = 1; // default: ← No
-      } else if (appState === AppState.GIG_SELECT || appState === AppState.READY) {
-        void enterIdle();
-      }
-      lastClickTime = 0;
-      return;
-    }
-
-    if (!event.listEvent) return;
-    const rawIdx = event.listEvent.currentSelectItemIndex ?? -1;
-    // Normalise eventType — real hardware may send a string ("SCROLL_TOP_EVENT")
-    // while the simulator sends a number. OsEventTypeList.fromJson handles both.
-    const evType = OsEventTypeList.fromJson(event.listEvent.eventType);
-
-    // Scroll events just update our local focus cursor — no action.
-    // Prefer rawIdx when provided; fall back to direction-based ±1 for hardware
-    // that doesn't include the index in scroll events.
-    if (evType === OsEventTypeList.SCROLL_TOP_EVENT || evType === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
-      if (rawIdx >= 0) {
-        focusedIdx = rawIdx;
-      } else if (evType === OsEventTypeList.SCROLL_TOP_EVENT) {
+  function handleGlassAction(action: 'tap' | 'double' | 'up' | 'down'): void {
+    if (action === 'up' || action === 'down') {
+      const dir = action;
+      if (!tryConsumeScroll(dir)) return;
+      if (dir === 'up') {
         focusedIdx = Math.max(0, focusedIdx - 1);
       } else {
         focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
       }
-      lastClickTime = 0; // moving to a different item resets the double-click timer
+      console.log('[scroll] scroll', dir, '→ focusedIdx:', focusedIdx);
       return;
     }
 
-    // Click/confirm event (CLICK_EVENT or eventType undefined/0)
-    // Detect rapid double-click by timing
-    const now = Date.now();
-    const isDoubleClick =
-      evType === OsEventTypeList.DOUBLE_CLICK_EVENT ||
-      (now - lastClickTime < 350 && evType === OsEventTypeList.CLICK_EVENT);
-    lastClickTime = now;
-
-    if (isDoubleClick) {
+    if (action === 'double') {
+      if (!tryConsumeTap('double')) return;
+      console.log('[scroll] double-tap in state', appState);
       if (appState === AppState.PLAYING) {
         playing = false;
         if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
         appState = AppState.CONFIRM_EXIT;
         void updateListData(['Return to menu?', '← No', '✓ Yes']);
-        focusedIdx = 1; // default: ← No
+        focusedIdx = 1;
       } else if (appState === AppState.GIG_SELECT || appState === AppState.READY) {
         void enterIdle();
       }
-      lastClickTime = 0;
       return;
     }
 
-    // Update focus tracking on scroll events; use tracked index on click
-    if (rawIdx >= 0) focusedIdx = rawIdx;
-    const idx = rawIdx >= 0 ? rawIdx : focusedIdx;
-
-    // Prioritise the name the SDK reports — it knows what's actually highlighted.
-    // Fall back to our local list (needed for dynamic items like gig names).
-    const sdkName = event.listEvent.currentSelectItemName ?? '';
-    const name = sdkName !== ''
-      ? sdkName
-      : (idx >= 0 && idx < currentListItems.length ? currentListItems[idx] : '');
-    console.log('[scroll] resolved name:', JSON.stringify(name), 'sdkName:', JSON.stringify(sdkName), 'idx:', idx, 'focusedIdx:', focusedIdx, 'listLen:', currentListItems.length);
+    // action === 'tap'
+    if (!tryConsumeTap('tap')) return;
+    const name = currentListItems[focusedIdx] ?? '';
+    console.log('[scroll] tap → focusedIdx:', focusedIdx, 'name:', JSON.stringify(name), 'state:', appState);
 
     if (appState === AppState.IDLE) {
       const voiceChars = ['S', 'A', 'T', 'B'];
-      if (idx >= 0 && idx < voiceChars.length) {
-        selectedVoice = voiceChars[idx];
+      if (focusedIdx >= 0 && focusedIdx < voiceChars.length) {
+        selectedVoice = voiceChars[focusedIdx];
         void enterGigSelect();
       }
 
     } else if (appState === AppState.GIG_SELECT) {
       if (name === '← Back') {
         void enterIdle();
-      } else if (idx >= 0 && idx < visibleGigs.length) {
-        void selectGig(visibleGigs[idx].id);
+      } else if (focusedIdx >= 0 && focusedIdx < visibleGigs.length) {
+        void selectGig(visibleGigs[focusedIdx].id);
       }
 
     } else if (appState === AppState.CONFIRM_EXIT) {
       if (name === '✓ Yes') {
         void enterIdle();
       } else {
-        // No (or anything else) — resume playing state
         appState = AppState.PLAYING;
         void updateListData(playingControls(), true);
-        focusedIdx = 1; // default: ← No
-        void sendFrame();  // restore the scroll strip that was visible before the dialog
+        focusedIdx = 0;
+        void sendFrame();
       }
 
     } else if (appState === AppState.READY) {
       if (name === '▶ Start') {
         void playSetlistFrom(setlistSongs, 0);
       } else if (name === '← Back') {
-        if (currentGigId !== null) {
-          void enterGigSelect();
-        } else {
-          void enterIdle();
-        }
+        void (currentGigId !== null ? enterGigSelect() : enterIdle());
       }
 
     } else if (appState === AppState.PLAYING) {
@@ -701,7 +686,6 @@ async function main(): Promise<void> {
         case '▶ Play':
           if (!playing && scrollPixels) {
             playing = true;
-            // Flip label to ⏸ Pause — preserve focus so SDK stays on this button
             void updateListData(playingControls(), true).then(() => sendFrame());
             scheduleTick();
           }
@@ -711,13 +695,11 @@ async function main(): Promise<void> {
           if (playing) {
             playing = false;
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-            // Flip label to ▶ Play — preserve focus
             void updateListData(playingControls(), true).then(() => sendFrame());
           }
           break;
 
         case '→ Step':
-          // Jump forward one screen; continue playing if already playing
           if (scrollPixels) {
             if (xOffset + PIXELS_PER_BEAT >= scrollW) {
               setStatus('Loading next song…');
@@ -726,7 +708,6 @@ async function main(): Promise<void> {
               xOffset += PIXELS_PER_BEAT;
               void sendFrame();
               if (playing) {
-                // Reset tick from new position so next advance is a full interval away
                 if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
                 scheduleTick();
               }
@@ -735,7 +716,6 @@ async function main(): Promise<void> {
           break;
 
         case '← Back':
-          // Jump back one screen; continue playing if already playing
           xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
           void sendFrame();
           if (playing) {
@@ -747,21 +727,49 @@ async function main(): Promise<void> {
         case '+ BPM':
           bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
           setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
-          if (playing) {
-            if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-            scheduleTick();
-          }
+          if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); }
           break;
 
         case '- BPM':
           bpm = Math.max(BPM_MIN, bpm - BPM_STEP);
           setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
-          if (playing) {
-            if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-            scheduleTick();
-          }
+          if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); }
           break;
       }
+    }
+  }
+
+  _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
+    console.log('[scroll] raw event:', JSON.stringify(event));
+
+    // sys double-click (no listEvent)
+    if (event.sysEvent?.eventType === OsEventTypeList.DOUBLE_CLICK_EVENT) {
+      handleGlassAction('double');
+      return;
+    }
+
+    const ev = event.listEvent;
+    if (!ev) return;
+
+    const et = ev.eventType as number;  // compare as raw number — same as even-toolkit
+    switch (et) {
+      case OsEventTypeList.SCROLL_TOP_EVENT:
+        handleGlassAction('up');
+        break;
+      case OsEventTypeList.SCROLL_BOTTOM_EVENT:
+        handleGlassAction('down');
+        break;
+      case OsEventTypeList.DOUBLE_CLICK_EVENT:
+        handleGlassAction('double');
+        break;
+      case OsEventTypeList.CLICK_EVENT:
+      default:
+        // Simulator omits eventType for CLICK_EVENT (value 0).
+        // Treat missing/0/undefined as a tap — same as even-toolkit action-map.
+        if (et === OsEventTypeList.CLICK_EVENT || et == null) {
+          handleGlassAction('tap');
+        }
+        break;
     }
   });
 
