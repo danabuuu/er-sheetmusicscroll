@@ -60,10 +60,15 @@ const BPM_MAX  = 300;
 const PIXELS_PER_BEAT = FRAME_W * 3;
 
 // Container IDs
-const ID_SCROLL_LEFT  = 1;
-const ID_SCROLL_MID   = 3;
-const ID_SCROLL_RIGHT = 4;
-const ID_CONTROLS     = 2;
+// ID_CONTROLS is an EMPTY text container with isEventCapture:1 — it captures
+// temple scroll/tap events and fires them to the app without scrolling any content.
+// ID_CONTROLS_TEXT is the actual menu content (no isEventCapture).
+// This split matches even-toolkit: separate overlay + content, never combined.
+const ID_SCROLL_LEFT   = 1;
+const ID_SCROLL_MID    = 3;
+const ID_SCROLL_RIGHT  = 4;
+const ID_CONTROLS      = 2;  // event-capture overlay (empty)
+const ID_CONTROLS_TEXT = 5;  // visible menu text
 
 // State machine
 const enum AppState { IDLE, GIG_SELECT, READY, PLAYING, CONFIRM_EXIT }
@@ -283,22 +288,29 @@ async function main(): Promise<void> {
 
   // ── Initial startup layout (called ONCE) ──────────────────────────────────
   const startupPage = new CreateStartUpPageContainer({
-    containerTotalNum: 4,
+    containerTotalNum: 5,
     imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
     listObject: [],
-    textObject: [new TextContainerProperty({
-      containerID: ID_CONTROLS,
-      containerName: 'controls',
-      xPosition: 0,
-      yPosition: 0,
-      width: 576,
-      height: 160,
-      borderWidth: 0,
-      borderColor: 0,
-      paddingLength: 0,
-      isEventCapture: 1,
-      content: '▶ Loading…',
-    })],
+    textObject: [
+      // Empty overlay — captures temple events (scroll/tap/double) without
+      // scrolling any content, exactly like the overlays in even-toolkit/bridge.ts.
+      new TextContainerProperty({
+        containerID: ID_CONTROLS,
+        containerName: 'controls-overlay',
+        xPosition: 0, yPosition: 0, width: 576, height: 160,
+        borderWidth: 0, borderColor: 0, paddingLength: 0,
+        isEventCapture: 1,
+        content: '',
+      }),
+      // Content container — shows the menu text with ▶ cursor.
+      new TextContainerProperty({
+        containerID: ID_CONTROLS_TEXT,
+        containerName: 'controls-text',
+        xPosition: 0, yPosition: 0, width: 576, height: 160,
+        borderWidth: 0, borderColor: 0, paddingLength: 0,
+        content: '▶ Loading…',
+      }),
+    ],
   });
 
   const startupResult = await bridge.createStartUpPageContainer(startupPage);
@@ -335,8 +347,8 @@ async function main(): Promise<void> {
   // Does NOT rebuild the full page; only updates the text container content.
   async function updateControlsDisplay(): Promise<void> {
     await bridge.textContainerUpgrade(new TextContainerUpgrade({
-      containerID: ID_CONTROLS,
-      containerName: 'controls',
+      containerID: ID_CONTROLS_TEXT,
+      containerName: 'controls-text',
       contentOffset: 0,
       contentLength: 2000,
       content: renderControlsText(),
@@ -348,22 +360,26 @@ async function main(): Promise<void> {
     currentListItems = safe;
     if (!preserveFocus) focusedIdx = 0;
     await bridge.rebuildPageContainer(new RebuildPageContainer({
-      containerTotalNum: 4,
+      containerTotalNum: 5,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
       listObject: [],
-      textObject: [new TextContainerProperty({
-        containerID: ID_CONTROLS,
-        containerName: 'controls',
-        xPosition: 0,
-        yPosition: 0,
-        width: 576,
-        height: 160,
-        borderWidth: 0,
-        borderColor: 0,
-        paddingLength: 0,
-        isEventCapture: 1,
-        content: renderControlsText(),
-      })],
+      textObject: [
+        new TextContainerProperty({
+          containerID: ID_CONTROLS,
+          containerName: 'controls-overlay',
+          xPosition: 0, yPosition: 0, width: 576, height: 160,
+          borderWidth: 0, borderColor: 0, paddingLength: 0,
+          isEventCapture: 1,
+          content: '',
+        }),
+        new TextContainerProperty({
+          containerID: ID_CONTROLS_TEXT,
+          containerName: 'controls-text',
+          xPosition: 0, yPosition: 0, width: 576, height: 160,
+          borderWidth: 0, borderColor: 0, paddingLength: 0,
+          content: renderControlsText(),
+        }),
+      ],
     }));
   }
 
