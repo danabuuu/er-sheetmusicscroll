@@ -320,13 +320,9 @@ async function main(): Promise<void> {
     return [playing ? '|| Pause' : '> Play', 'Step', 'Back', '+BPM', '-BPM'];
   }
 
-  async function updateListData(items: string[], preserveFocus = false): Promise<void> {
+  async function updateListData(items: string[]): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
-    if (!preserveFocus) focusedIdx = 0;
-    // The firmware fires exactly one spurious scroll event after every rebuild.
-    // Increment a counter so the event handler can absorb it by count (not by time).
-    spuriousScrollsToAbsorb++;
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -341,8 +337,7 @@ async function main(): Promise<void> {
           isItemSelectBorderEn: 1,
         }),
       })],
-      currentSelectedItem: focusedIdx,
-    } as any));
+    }));
   }
 
   // ── Image frame helpers ────────────────────────────────────────────────────
@@ -572,78 +567,54 @@ async function main(): Promise<void> {
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  // focusedIdx: our local mirror of the SDK list cursor.
-  //   - Scroll events move it ±1 (no suppression, no debouncing).
-  //   - Click events override it with the SDK-reported index before dispatching,
-  //     so even if our local tracking drifted the tap always fires on the right item.
-  //   - Every updateListData passes currentSelectedItem: focusedIdx to keep
-  //     the SDK visual cursor in sync after rebuilds.
-  // spuriousScrollsToAbsorb: incremented before every rebuildPageContainer.
-  // The firmware fires exactly one scroll event per rebuild; this counter lets
-  // the event handler absorb it by count rather than by time.
-  let spuriousScrollsToAbsorb = 0;
-  let focusedIdx = 0;
-  let lastTapMs = 0; // simple 90ms tap dedup for hardware duplicate events
+  // Dispatch uses the SDK-reported currentSelectItemIndex on every click event.
+  // We do not track cursor position ourselves — scroll events move the hardware
+  // cursor natively and we leave them entirely to the firmware.
+  // Dispatch is by item name, not index, so it's immune to any cursor drift.
+  let lastClickMs = 0;
 
-  function dispatchTap(): void {
+  function dispatchTap(idx: number): void {
     const now = Date.now();
-    if (now - lastTapMs < 90) return; // drop hardware duplicate
-    lastTapMs = now;
-
-    const name = currentListItems[focusedIdx] ?? '';
-    console.log('[nav] tap idx=%d name=%s state=%s', focusedIdx, name, appState);
+    if (now - lastClickMs < 90) return; // drop hardware duplicate tap
+    lastClickMs = now;
+    const name = currentListItems[idx] ?? '';
+    console.log('[nav] tap idx=%d name=%s state=%s', idx, name, appState);
 
     if (appState === AppState.IDLE) {
-      const voices = ['S','A','T','B'];
-      if (focusedIdx < voices.length) { selectedVoice = voices[focusedIdx]; void enterGigSelect(); }
+      const voiceMap: Record<string, string> = { 'Soprano': 'S', 'Alto': 'A', 'Tenor': 'T', 'Bass': 'B' };
+      if (voiceMap[name]) { selectedVoice = voiceMap[name]; void enterGigSelect(); }
 
     } else if (appState === AppState.GIG_SELECT) {
-      if (focusedIdx < visibleGigs.length) void selectGig(visibleGigs[focusedIdx].id);
-      else void enterIdle(); // Back
+      if (name === 'Back') void enterIdle();
+      else { const gig = visibleGigs[idx]; if (gig) void selectGig(gig.id); }
 
     } else if (appState === AppState.READY) {
-      if (focusedIdx === 0) void playSetlistFrom(setlistSongs, 0);
-      else void (currentGigId !== null ? enterGigSelect() : enterIdle()); // Back
+      if (name === 'Start') void playSetlistFrom(setlistSongs, 0);
+      else if (name === 'Back') void (currentGigId !== null ? enterGigSelect() : enterIdle());
 
     } else if (appState === AppState.CONFIRM_EXIT) {
-      if (focusedIdx === 1) { void enterIdle(); } // Yes
-      else { // No (index 0) — resume
-        appState = AppState.PLAYING;
-        void updateListData(playingControls(), true).then(() => sendFrame());
-      }
+      if (name === 'Yes') void enterIdle();
+      else if (name === 'No') { appState = AppState.PLAYING; void updateListData(playingControls()).then(() => sendFrame()); }
 
     } else if (appState === AppState.PLAYING) {
-      if (focusedIdx === 0) { // Play / Pause toggle
-        if (!playing && scrollPixels) {
-          playing = true;
-          void updateListData(playingControls(), true).then(() => sendFrame());
-          scheduleTick();
-        } else if (playing) {
-          playing = false;
-          if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          void updateListData(playingControls(), true).then(() => sendFrame());
-        }
-      } else if (focusedIdx === 1) { // Step
+      if (name === '> Play') {
+        if (scrollPixels) { playing = true; void updateListData(playingControls()).then(() => sendFrame()); scheduleTick(); }
+      } else if (name === '|| Pause') {
+        playing = false; if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+        void updateListData(playingControls()).then(() => sendFrame());
+      } else if (name === 'Step') {
         if (scrollPixels) {
-          if (xOffset + PIXELS_PER_BEAT >= scrollW) {
-            void playSetlistFrom(setlistSongs, currentSongIdx + 1);
-          } else {
-            xOffset += PIXELS_PER_BEAT;
-            void sendFrame();
-            if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); }
-          }
+          if (xOffset + PIXELS_PER_BEAT >= scrollW) void playSetlistFrom(setlistSongs, currentSongIdx + 1);
+          else { xOffset += PIXELS_PER_BEAT; void sendFrame(); if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); } }
         }
-      } else if (focusedIdx === 2) { // Back
-        xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
-        void sendFrame();
+      } else if (name === 'Back') {
+        xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT); void sendFrame();
         if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); }
-      } else if (focusedIdx === 3) { // +BPM
-        bpm = Math.min(BPM_MAX, bpm + BPM_STEP);
-        setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
+      } else if (name === '+BPM') {
+        bpm = Math.min(BPM_MAX, bpm + BPM_STEP); setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
         if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); }
-      } else if (focusedIdx === 4) { // -BPM
-        bpm = Math.max(BPM_MIN, bpm - BPM_STEP);
-        setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
+      } else if (name === '-BPM') {
+        bpm = Math.max(BPM_MIN, bpm - BPM_STEP); setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM`);
         if (playing) { if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; } scheduleTick(); }
       }
     }
@@ -654,8 +625,7 @@ async function main(): Promise<void> {
       playing = false;
       if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
       appState = AppState.CONFIRM_EXIT;
-      void updateListData(['No', 'Yes']);
-      // focusedIdx=0 (No) is the safe default — user must scroll to Yes to confirm
+      void updateListData(['Return to main menu?', 'No', 'Yes']);
     } else if (appState === AppState.GIG_SELECT || appState === AppState.READY) {
       void enterIdle();
     }
@@ -663,31 +633,18 @@ async function main(): Promise<void> {
 
   _unsubscribeEvents = bridge.onEvenHubEvent((event) => {
     console.log('[nav] event:', JSON.stringify(event));
-
     if (event.sysEvent?.eventType === OsEventTypeList.DOUBLE_CLICK_EVENT) {
       dispatchDouble(); return;
     }
     const ev = event.listEvent;
     if (!ev) return;
-
     const et = ev.eventType as number;
-
-    if (et === OsEventTypeList.SCROLL_TOP_EVENT) {
-      if (spuriousScrollsToAbsorb > 0) { spuriousScrollsToAbsorb--; console.log('[nav] absorbed spurious scroll up'); return; }
-      focusedIdx = Math.max(0, focusedIdx - 1);
-      console.log('[nav] scroll up → focusedIdx:', focusedIdx);
-    } else if (et === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
-      if (spuriousScrollsToAbsorb > 0) { spuriousScrollsToAbsorb--; console.log('[nav] absorbed spurious scroll down'); return; }
-      focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
-      console.log('[nav] scroll down → focusedIdx:', focusedIdx);
-    } else if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
+    if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
       dispatchDouble();
-    } else {
-      // CLICK_EVENT (0) or undefined (simulator omits eventType on click)
-      if (et === OsEventTypeList.CLICK_EVENT || et == null) {
-        dispatchTap();
-      }
+    } else if (et === OsEventTypeList.CLICK_EVENT || et == null) {
+      dispatchTap(ev.currentSelectItemIndex ?? 0);
     }
+    // SCROLL events: firmware moves the visual cursor natively — nothing to do here
   });
 
   // ── Kick off ──────────────────────────────────────────────────────────────
