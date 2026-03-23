@@ -324,6 +324,9 @@ async function main(): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
     if (!preserveFocus) focusedIdx = 0;
+    // The firmware fires exactly one spurious scroll event after every rebuild.
+    // Increment a counter so the event handler can absorb it by count (not by time).
+    spuriousScrollsToAbsorb++;
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -575,6 +578,10 @@ async function main(): Promise<void> {
   //     so even if our local tracking drifted the tap always fires on the right item.
   //   - Every updateListData passes currentSelectedItem: focusedIdx to keep
   //     the SDK visual cursor in sync after rebuilds.
+  // spuriousScrollsToAbsorb: incremented before every rebuildPageContainer.
+  // The firmware fires exactly one scroll event per rebuild; this counter lets
+  // the event handler absorb it by count rather than by time.
+  let spuriousScrollsToAbsorb = 0;
   let focusedIdx = 0;
   let lastTapMs = 0; // simple 90ms tap dedup for hardware duplicate events
 
@@ -615,20 +622,12 @@ async function main(): Promise<void> {
       if (focusedIdx === 0) { // Play / Pause toggle
         if (!playing && scrollPixels) {
           playing = true;
-          // Rebuild to flip the label, then hard-reset focusedIdx=0 to cancel
-          // the spurious scroll event the firmware fires after every rebuild.
-          void updateListData(playingControls(), true).then(() => {
-            focusedIdx = 0;
-            return sendFrame();
-          });
+          void updateListData(playingControls(), true).then(() => sendFrame());
           scheduleTick();
         } else if (playing) {
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          void updateListData(playingControls(), true).then(() => {
-            focusedIdx = 0;
-            return sendFrame();
-          });
+          void updateListData(playingControls(), true).then(() => sendFrame());
         }
       } else if (focusedIdx === 1) { // Step
         if (scrollPixels) {
@@ -680,9 +679,11 @@ async function main(): Promise<void> {
     const et = ev.eventType as number;
 
     if (et === OsEventTypeList.SCROLL_TOP_EVENT) {
+      if (spuriousScrollsToAbsorb > 0) { spuriousScrollsToAbsorb--; console.log('[nav] absorbed spurious scroll up'); return; }
       focusedIdx = Math.max(0, focusedIdx - 1);
       console.log('[nav] scroll up → focusedIdx:', focusedIdx);
     } else if (et === OsEventTypeList.SCROLL_BOTTOM_EVENT) {
+      if (spuriousScrollsToAbsorb > 0) { spuriousScrollsToAbsorb--; console.log('[nav] absorbed spurious scroll down'); return; }
       focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
       console.log('[nav] scroll down → focusedIdx:', focusedIdx);
     } else if (et === OsEventTypeList.DOUBLE_CLICK_EVENT) {
