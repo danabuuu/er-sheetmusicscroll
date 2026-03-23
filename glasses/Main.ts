@@ -328,6 +328,9 @@ async function main(): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
     if (!preserveFocus) focusedIdx = 0;
+    // Stamp before await so spurious SDK scroll events fired during the rebuild
+    // are suppressed by tryConsumeScroll — same role as notifyTextUpdate() in even-toolkit.
+    lastScrollTime = Date.now();
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
