@@ -190,13 +190,14 @@ async function extractSlice(
   // drawImage clips cleanly if srcX + SOURCE_SLICE_W exceeds srcCanvas.width
   dstCtx.drawImage(srcCanvas, srcX, 0, SOURCE_SLICE_W, srcH, 0, 0, FRAME_W, FRAME_H);
 
-  // Invert colors for the dark display
+  // Invert + threshold to pure B&W: dark original pixels (notes/staffs) → white;
+  // light original pixels (paper) → black. Pure 2-level images compress much
+  // smaller as PNG, reducing BLE transfer time significantly.
   const frameData = dstCtx.getImageData(0, 0, FRAME_W, FRAME_H);
   const d = frameData.data;
   for (let i = 0; i < d.length; i += 4) {
-    d[i]   = 255 - d[i];
-    d[i+1] = 255 - d[i+1];
-    d[i+2] = 255 - d[i+2];
+    const v = (d[i] + d[i+1] + d[i+2]) < 384 ? 255 : 0; // dark pixel → white, light → black
+    d[i] = d[i+1] = d[i+2] = v;
   }
   dstCtx.putImageData(frameData, 0, 0);
 
@@ -370,22 +371,25 @@ async function main(): Promise<void> {
     ]);
   }
 
-  /** Pre-render all frames for a song in the background, one at a time.
+  /** Pre-render all frames for a song in parallel batches.
    *  Aborts silently if frameRenderCache is replaced (new song loaded). */
   async function prerenderFrames(
     canvas: OffscreenCanvas, w: number, h: number,
     cache: Map<number, [Uint8Array, Uint8Array, Uint8Array]>,
   ): Promise<void> {
-    for (let x = 0; x < w; x += PIXELS_PER_BEAT) {
-      if (cache !== frameRenderCache) return; // song changed — abort
-      if (!cache.has(x)) {
+    const xs: number[] = [];
+    for (let x = 0; x < w; x += PIXELS_PER_BEAT) xs.push(x);
+    const BATCH = 4;
+    for (let i = 0; i < xs.length; i += BATCH) {
+      if (cache !== frameRenderCache) return;
+      await Promise.all(xs.slice(i, i + BATCH).filter(x => !cache.has(x)).map(async x => {
         const slices = await Promise.all([
           extractSlice(canvas, x, h),
           extractSlice(canvas, x + SOURCE_SLICE_W, h),
           extractSlice(canvas, x + SOURCE_SLICE_W * 2, h),
         ]) as [Uint8Array, Uint8Array, Uint8Array];
         if (cache === frameRenderCache) cache.set(x, slices);
-      }
+      }));
     }
   }
 
