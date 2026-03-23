@@ -5,7 +5,7 @@
  * glasses via the Even Hub SDK.
  *
  * Layout (576×288 SDK coordinates):
- *   - List container    [576×160] at (0, 0)     — navigation / playback controls
+ *   - Text container    [576×160] at (0, 0)     — navigation / playback controls (▶ cursor rendered in text)
  *   - Image container L [192×100] at (0, 188)   — left third of the scroll window
  *   - Image container M [192×100] at (192, 188) — centre third
  *   - Image container R [192×100] at (384, 188) — right third
@@ -20,8 +20,8 @@
 import {
   waitForEvenAppBridge,
   ImageContainerProperty,
-  ListContainerProperty,
-  ListItemContainerProperty,
+  TextContainerProperty,
+  TextContainerUpgrade,
   CreateStartUpPageContainer,
   RebuildPageContainer,
   ImageRawDataUpdate,
@@ -285,21 +285,20 @@ async function main(): Promise<void> {
   const startupPage = new CreateStartUpPageContainer({
     containerTotalNum: 4,
     imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
-    listObject: [new ListContainerProperty({
+    listObject: [],
+    textObject: [new TextContainerProperty({
       containerID: ID_CONTROLS,
       containerName: 'controls',
       xPosition: 0,
       yPosition: 0,
       width: 576,
       height: 160,
+      borderWidth: 0,
+      borderColor: 0,
+      paddingLength: 0,
       isEventCapture: 1,
-      itemContainer: new ListItemContainerProperty({
-        itemCount: 1,
-        itemName: ['Loading…'],
-        isItemSelectBorderEn: 1,
-      }),
+      content: '▶ Loading…',
     })],
-    textObject: [],
   });
 
   const startupResult = await bridge.createStartUpPageContainer(startupPage);
@@ -319,36 +318,52 @@ async function main(): Promise<void> {
   // ── Update list items via rebuildPageContainer ─────────────────────────────
   let currentListItems: string[] = []; // authoritative copy of what's in the list
 
-  // Playing-state controls: Step/Back first (primary use), then play toggle, then BPM
+  // Playing-state controls: play toggle first, then Step/Back, then BPM
   function playingControls(): string[] {
     return [playing ? '⏸ Pause' : '▶ Play', '→ Step', '← Back', '+ BPM', '- BPM'];
+  }
+
+  // Render the controls list as text with ▶ on the focused item.
+  // The text container replaces the SDK list control so we own the cursor entirely.
+  function renderControlsText(): string {
+    return currentListItems.map((item, i) =>
+      i === focusedIdx ? `▶ ${item}` : `  ${item}`
+    ).join('\n');
+  }
+
+  // Lightweight controls redraw — used after every focus move.
+  // Does NOT rebuild the full page; only updates the text container content.
+  async function updateControlsDisplay(): Promise<void> {
+    await bridge.textContainerUpgrade(new TextContainerUpgrade({
+      containerID: ID_CONTROLS,
+      containerName: 'controls',
+      contentOffset: 0,
+      contentLength: 2000,
+      content: renderControlsText(),
+    }));
   }
 
   async function updateListData(items: string[], preserveFocus = false): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
     if (!preserveFocus) focusedIdx = 0;
-    // Stamp before await so spurious SDK scroll events fired during the rebuild
-    // are suppressed by tryConsumeScroll — same role as notifyTextUpdate() in even-toolkit.
-    lastScrollTime = Date.now();
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
-      listObject: [new ListContainerProperty({
+      listObject: [],
+      textObject: [new TextContainerProperty({
         containerID: ID_CONTROLS,
         containerName: 'controls',
         xPosition: 0,
         yPosition: 0,
         width: 576,
         height: 160,
+        borderWidth: 0,
+        borderColor: 0,
+        paddingLength: 0,
         isEventCapture: 1,
-        itemContainer: new ListItemContainerProperty({
-          itemCount: safe.length,
-          itemName: safe,
-          isItemSelectBorderEn: 1,
-        }),
+        content: renderControlsText(),
       })],
-      textObject: [],
     }));
   }
 
@@ -578,20 +593,16 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── Gesture debounce (ported from even-toolkit/glasses/gestures.ts) ───────
-  // G2 hardware fires duplicate and spurious events; these constants are tuned
-  // to filter them correctly on real hardware.
-  const TAP_COOLDOWN_MS            = 220;
-  const TAP_DUPLICATE_DEBOUNCE_MS  = 90;
-  const DBL_DUPLICATE_DEBOUNCE_MS  = 140;
-  const SCROLL_SUPPRESS_AFTER_TAP  = 110;
-  const SAME_DIR_DEBOUNCE_MS       = 350;
-  const DIR_CHANGE_DEBOUNCE_MS     = 50;
+  // ── Tap dedup (ported from even-toolkit/glasses/gestures.ts) ─────────────
+  // G2 hardware fires duplicate tap events within ~90ms; debounce them.
+  // Scroll debouncing is NOT needed because we use a text container with
+  // manual cursor rendering — there is no SDK-managed list cursor to fight.
+  const TAP_COOLDOWN_MS           = 220;
+  const TAP_DUPLICATE_DEBOUNCE_MS = 90;
+  const DBL_DUPLICATE_DEBOUNCE_MS = 140;
 
-  let lastTapTime  = 0;
+  let lastTapTime = 0;
   let lastTapKind: 'tap' | 'double' | null = null;
-  let lastScrollTime = 0;
-  let lastScrollDir: 'up' | 'down' | null = null;
 
   function tryConsumeTap(kind: 'tap' | 'double'): boolean {
     const now = Date.now();
@@ -603,33 +614,22 @@ async function main(): Promise<void> {
     return true;
   }
 
-  function tryConsumeScroll(dir: 'up' | 'down'): boolean {
-    const now = Date.now();
-    if (now - lastTapTime < SCROLL_SUPPRESS_AFTER_TAP) return false;
-    const threshold = dir === lastScrollDir ? SAME_DIR_DEBOUNCE_MS : DIR_CHANGE_DEBOUNCE_MS;
-    if (now - lastScrollTime < threshold) return false;
-    lastScrollTime = now; lastScrollDir = dir;
-    return true;
-  }
-
   // ── Temple gesture handler ─────────────────────────────────────────────────
-  // We use our own focusedIdx to track which item is highlighted, because:
-  //  - click events don't include currentSelectItemIndex on hardware
-  //  - currentSelectItemName is unreliable when the list hasn't been rebuilt
-  // On scroll: move focusedIdx ±1 (direction from event type).
-  // On click: dispatch currentListItems[focusedIdx].
+  // focusedIdx is the ONLY cursor — we own it entirely because we render the
+  // ▶ marker in text ourselves (no SDK-managed list cursor).
+  // On scroll: move focusedIdx ±1, redraw controls text.
+  // On tap: dispatch action on currentListItems[focusedIdx].
   let focusedIdx = 0;
 
   function handleGlassAction(action: 'tap' | 'double' | 'up' | 'down'): void {
     if (action === 'up' || action === 'down') {
-      const dir = action;
-      if (!tryConsumeScroll(dir)) return;
-      if (dir === 'up') {
+      if (action === 'up') {
         focusedIdx = Math.max(0, focusedIdx - 1);
       } else {
         focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
       }
-      console.log('[scroll] scroll', dir, '→ focusedIdx:', focusedIdx);
+      console.log('[scroll] scroll', action, '→ focusedIdx:', focusedIdx);
+      void updateControlsDisplay();
       return;
     }
 
