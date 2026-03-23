@@ -5,7 +5,7 @@
  * glasses via the Even Hub SDK.
  *
  * Layout (576×288 SDK coordinates):
- *   - Text container    [576×160] at (0, 0)     — navigation / playback controls (▶ cursor rendered in text)
+ *   - List container    [576×160] at (0, 0)     — navigation / playback controls (max 4 containers total)
  *   - Image container L [192×100] at (0, 188)   — left third of the scroll window
  *   - Image container M [192×100] at (192, 188) — centre third
  *   - Image container R [192×100] at (384, 188) — right third
@@ -22,7 +22,6 @@ import {
   ImageContainerProperty,
   ListContainerProperty,
   ListItemContainerProperty,
-  TextContainerProperty,
   TextContainerUpgrade,
   CreateStartUpPageContainer,
   RebuildPageContainer,
@@ -61,16 +60,11 @@ const BPM_MAX  = 300;
 /** Source pixels advanced per snap. One full screen = three containers = 3×FRAME_W. */
 const PIXELS_PER_BEAT = FRAME_W * 3;
 
-// Container IDs
-// ID_CONTROLS is an EMPTY text container with isEventCapture:1 — it captures
-// temple scroll/tap events and fires them to the app without scrolling any content.
-// ID_CONTROLS_TEXT is the actual menu content (no isEventCapture).
-// This split matches even-toolkit: separate overlay + content, never combined.
-const ID_SCROLL_LEFT   = 1;
-const ID_SCROLL_MID    = 3;
-const ID_SCROLL_RIGHT  = 4;
-const ID_CONTROLS      = 2;  // event-capture overlay (empty)
-const ID_CONTROLS_TEXT = 5;  // visible menu text
+// Container IDs  (max 4 total: 3 images + 1 list)
+const ID_SCROLL_LEFT  = 1;
+const ID_SCROLL_MID   = 3;
+const ID_SCROLL_RIGHT = 4;
+const ID_CONTROLS     = 2;
 
 // State machine
 const enum AppState { IDLE, GIG_SELECT, READY, PLAYING, CONFIRM_EXIT }
@@ -289,8 +283,7 @@ async function main(): Promise<void> {
   });
 
   // ── Initial startup layout (called ONCE) ──────────────────────────────────
-  // Startup: must use a list container so the SDK initialises its event system.
-  // All subsequent renders switch to text containers via rebuildPageContainer.
+  // Startup: use a list container so the SDK initialises its event system.
   const startupPage = new CreateStartUpPageContainer({
     containerTotalNum: 4,
     imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -303,8 +296,7 @@ async function main(): Promise<void> {
         itemCount: 1, itemName: ['Loading…'], isItemSelectBorderEn: 1,
       }),
     })],
-    textObject: [],
-  });
+  } as any);
 
   const startupResult = await bridge.createStartUpPageContainer(startupPage);
   console.log('[scroll] createStartUpPageContainer result:', startupResult);
@@ -323,57 +315,34 @@ async function main(): Promise<void> {
   // ── Update list items via rebuildPageContainer ─────────────────────────────
   let currentListItems: string[] = []; // authoritative copy of what's in the list
 
-  // Playing-state controls: play toggle first, then Step/Back, then BPM
+  // Playing-state controls
   function playingControls(): string[] {
     return [playing ? '⏸ Pause' : '▶ Play', '→ Step', '← Back', '+ BPM', '- BPM'];
-  }
-
-  // Render the controls list as text with ▶ on the focused item.
-  // The text container replaces the SDK list control so we own the cursor entirely.
-  function renderControlsText(): string {
-    return currentListItems.map((item, i) =>
-      i === focusedIdx ? `▶ ${item}` : `  ${item}`
-    ).join('\n');
-  }
-
-  // Lightweight controls redraw — used after every focus move.
-  // Does NOT rebuild the full page; only updates the text container content.
-  async function updateControlsDisplay(): Promise<void> {
-    await bridge.textContainerUpgrade(new TextContainerUpgrade({
-      containerID: ID_CONTROLS_TEXT,
-      containerName: 'controls-text',
-      contentOffset: 0,
-      contentLength: 2000,
-      content: renderControlsText(),
-    }));
   }
 
   async function updateListData(items: string[], preserveFocus = false): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
     if (!preserveFocus) focusedIdx = 0;
+    // currentSelectedItem is not in the SDK types but is supported by the firmware:
+    // it sets the list cursor to the specified index after rebuild, keeping the
+    // SDK cursor in sync with our local focusedIdx. See even-dev/restapi-app.ts.
     await bridge.rebuildPageContainer(new RebuildPageContainer({
-      containerTotalNum: 5,
+      containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
-      listObject: [],
-      textObject: [
-        new TextContainerProperty({
-          containerID: ID_CONTROLS,
-          containerName: 'controls-overlay',
-          xPosition: 0, yPosition: 0, width: 576, height: 160,
-          borderWidth: 0, borderColor: 0, paddingLength: 0,
-          isEventCapture: 1,
-          content: '',
+      listObject: [new ListContainerProperty({
+        containerID: ID_CONTROLS,
+        containerName: 'controls',
+        xPosition: 0, yPosition: 0, width: 576, height: 160,
+        isEventCapture: 1,
+        itemContainer: new ListItemContainerProperty({
+          itemCount: safe.length,
+          itemName: safe,
+          isItemSelectBorderEn: 1,
         }),
-        new TextContainerProperty({
-          containerID: ID_CONTROLS_TEXT,
-          containerName: 'controls-text',
-          xPosition: 0, yPosition: 0, width: 576, height: 160,
-          borderWidth: 0, borderColor: 0, paddingLength: 0,
-          content: renderControlsText(),
-        }),
-      ],
-    }));
+      })],
+      currentSelectedItem: focusedIdx,
+    } as any));
   }
 
   // ── Image frame helpers ────────────────────────────────────────────────────
@@ -624,21 +593,23 @@ async function main(): Promise<void> {
   }
 
   // ── Temple gesture handler ─────────────────────────────────────────────────
-  // focusedIdx is the ONLY cursor — we own it entirely because we render the
-  // ▶ marker in text ourselves (no SDK-managed list cursor).
-  // On scroll: move focusedIdx ±1, redraw controls text.
-  // On tap: dispatch action on currentListItems[focusedIdx].
+  // focusedIdx tracks which list item is highlighted. It is set from
+  // currentSelectItemIndex on scroll events (SDK tells us where the cursor is)
+  // and restored via currentSelectedItem on every rebuild (so the SDK cursor
+  // stays in sync after rebuilds).
   let focusedIdx = 0;
 
-  function handleGlassAction(action: 'tap' | 'double' | 'up' | 'down'): void {
+  function handleGlassAction(action: 'tap' | 'double' | 'up' | 'down', sdkIdx?: number): void {
     if (action === 'up' || action === 'down') {
-      if (action === 'up') {
+      // Trust the SDK's reported index if provided; otherwise move ±1.
+      if (sdkIdx !== undefined && sdkIdx >= 0 && sdkIdx < currentListItems.length) {
+        focusedIdx = sdkIdx;
+      } else if (action === 'up') {
         focusedIdx = Math.max(0, focusedIdx - 1);
       } else {
         focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
       }
       console.log('[scroll] scroll', action, '→ focusedIdx:', focusedIdx);
-      void updateControlsDisplay();
       return;
     }
 
@@ -763,21 +734,26 @@ async function main(): Promise<void> {
     const ev = event.listEvent;
     if (!ev) return;
 
-    const et = ev.eventType as number;  // compare as raw number — same as even-toolkit
+    // Parse index from event — used to sync focusedIdx on scroll.
+    const rawIdx = ev.currentSelectItemIndex;
+    const sdkIdx = typeof rawIdx === 'number' ? rawIdx
+      : typeof rawIdx === 'string' ? parseInt(rawIdx, 10)
+      : -1;
+    const validIdx = Number.isFinite(sdkIdx) && sdkIdx >= 0 ? sdkIdx : undefined;
+
+    const et = ev.eventType as number;
     switch (et) {
       case OsEventTypeList.SCROLL_TOP_EVENT:
-        handleGlassAction('up');
+        handleGlassAction('up', validIdx);
         break;
       case OsEventTypeList.SCROLL_BOTTOM_EVENT:
-        handleGlassAction('down');
+        handleGlassAction('down', validIdx);
         break;
       case OsEventTypeList.DOUBLE_CLICK_EVENT:
         handleGlassAction('double');
         break;
       case OsEventTypeList.CLICK_EVENT:
       default:
-        // Simulator omits eventType for CLICK_EVENT (value 0).
-        // Treat missing/0/undefined as a tap — same as even-toolkit action-map.
         if (et === OsEventTypeList.CLICK_EVENT || et == null) {
           handleGlassAction('tap');
         }
