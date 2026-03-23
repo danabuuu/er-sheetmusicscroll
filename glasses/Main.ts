@@ -612,15 +612,18 @@ async function main(): Promise<void> {
       }
 
     } else if (appState === AppState.PLAYING) {
-      if (focusedIdx === 0) { // Play / Pause
+      if (focusedIdx === 0) { // Play / Pause toggle
         if (!playing && scrollPixels) {
           playing = true;
-          void updateListData(playingControls(), true).then(() => sendFrame());
+          // Don't rebuild — the label flip triggers a spurious scroll that
+          // corrupts focusedIdx. The playing state is authoritative; use the
+          // status bar to show state instead.
+          setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM — PLAYING`);
           scheduleTick();
         } else if (playing) {
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          void updateListData(playingControls(), true).then(() => sendFrame());
+          setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM — PAUSED`);
         }
       } else if (focusedIdx === 1) { // Step
         if (scrollPixels) {
