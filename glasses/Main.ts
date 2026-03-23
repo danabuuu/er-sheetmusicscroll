@@ -317,7 +317,7 @@ async function main(): Promise<void> {
 
   // Playing-state controls
   function playingControls(): string[] {
-    return [playing ? 'Pause' : 'Play', 'Step', 'Back', '+BPM', '-BPM'];
+    return [playing ? '|| Pause' : '> Play', 'Step', 'Back', '+BPM', '-BPM'];
   }
 
   async function updateListData(items: string[], preserveFocus = false): Promise<void> {
@@ -615,15 +615,20 @@ async function main(): Promise<void> {
       if (focusedIdx === 0) { // Play / Pause toggle
         if (!playing && scrollPixels) {
           playing = true;
-          // Don't rebuild — the label flip triggers a spurious scroll that
-          // corrupts focusedIdx. The playing state is authoritative; use the
-          // status bar to show state instead.
-          setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM — PLAYING`);
+          // Rebuild to flip the label, then hard-reset focusedIdx=0 to cancel
+          // the spurious scroll event the firmware fires after every rebuild.
+          void updateListData(playingControls(), true).then(() => {
+            focusedIdx = 0;
+            return sendFrame();
+          });
           scheduleTick();
         } else if (playing) {
           playing = false;
           if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-          setStatus(`${currentSong?.title ?? 'Playing'} — ${bpm} BPM — PAUSED`);
+          void updateListData(playingControls(), true).then(() => {
+            focusedIdx = 0;
+            return sendFrame();
+          });
         }
       } else if (focusedIdx === 1) { // Step
         if (scrollPixels) {
