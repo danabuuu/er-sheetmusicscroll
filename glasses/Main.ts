@@ -241,6 +241,7 @@ async function main(): Promise<void> {
   // Cleared whenever a new song loads. Pre-rendered in the background after load.
   let scrollCanvas: OffscreenCanvas | null = null;
   let frameRenderCache = new Map<number, [Uint8Array, Uint8Array, Uint8Array]>();
+  let avgSendMs = 250; // EMA of BLE transfer time; used to fire ticks early so frames arrive on-beat
 
   async function fetchScrollPixelsCached(url: string) {
     if (pixelCache.has(url)) return pixelCache.get(url)!;
@@ -351,6 +352,7 @@ async function main(): Promise<void> {
 
   async function sendFrame(): Promise<void> {
     if (!scrollCanvas) return;
+    const t0 = performance.now();
     const [sliceL, sliceM, sliceR] = await renderFrame(xOffset);
     await Promise.all([
       bridge.updateImageRawData(new ImageRawDataUpdate({
@@ -369,6 +371,7 @@ async function main(): Promise<void> {
         imageData: sliceR,
       })),
     ]);
+    avgSendMs = avgSendMs * 0.75 + (performance.now() - t0) * 0.25;
   }
 
   /** Pre-render all frames for a song in parallel batches.
@@ -400,18 +403,22 @@ async function main(): Promise<void> {
       : PIXELS_PER_BEAT;
     const beatsPerScreen = PIXELS_PER_BEAT / pixelsPerBeat;
     const intervalMs = beatsPerScreen * (60 / bpm) * 1000;
+    // Fire the tick avgSendMs early so the BLE transfer completes on the beat,
+    // not avgSendMs after it. Clamped to 50% of the interval so we never fire
+    // more than halfway through the previous beat.
+    const leadMs = Math.min(avgSendMs, intervalMs * 0.5);
     tickTimer = setTimeout(async () => {
       if (!playing) return;
       xOffset += PIXELS_PER_BEAT;
-      if (scrollPixels && xOffset >= scrollW) {
+      if (scrollCanvas && xOffset >= scrollW) {
         playing = false;
         setStatus('Song ended. Loading next…');
         void playSetlistFrom(setlistSongs, currentSongIdx + 1);
         return;
       }
-      await sendFrame();
+      await sendFrame(); // avgSendMs updates here; next tick uses fresh estimate
       scheduleTick();
-    }, intervalMs);
+    }, Math.max(50, intervalMs - leadMs));
   }
 
   // ── State machine ──────────────────────────────────────────────────────────
