@@ -152,21 +152,23 @@ function uniquePartLabels(songs: SetlistSong[]): string[] {
  */
 async function fetchScrollPixels(url: string): Promise<{
   pixels: Uint8ClampedArray;
+  canvas: OffscreenCanvas;
   width: number;
   height: number;
 } | null> {
   try {
-    const bustUrl = `${url}?t=${Date.now()}`;
-    const res = await fetch(bustUrl);
+    const res = await fetch(url);
     if (!res.ok) return null;
     const blob = await res.blob();
     const bitmap = await createImageBitmap(blob);
 
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const ctx = canvas.getContext('2d')!;
+    // Pre-draw to an OffscreenCanvas once so extractSlice can crop directly
+    // without cloning the full pixel buffer on every call.
+    const srcCanvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = srcCanvas.getContext('2d')!;
     ctx.drawImage(bitmap, 0, 0);
     const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-    return { pixels: imageData.data, width: bitmap.width, height: bitmap.height };
+    return { pixels: imageData.data, canvas: srcCanvas, width: bitmap.width, height: bitmap.height };
   } catch {
     return null;
   }
@@ -177,24 +179,16 @@ async function fetchScrollPixels(url: string): Promise<{
  * resamples to FRAME_W×FRAME_H, inverts colors, encodes as PNG, returns bytes as number[].
  */
 async function extractSlice(
-  pixels: Uint8ClampedArray,
-  srcW: number,
+  srcCanvas: OffscreenCanvas,
+  srcX: number,
   srcH: number,
-  xOffset: number,
-): Promise<number[]> {
-  const srcX = Math.min(xOffset, srcW - 1);
-  const srcSliceW = Math.min(SOURCE_SLICE_W, srcW - srcX);
-
-  const srcCanvas = new OffscreenCanvas(srcSliceW, srcH);
-  const srcCtx = srcCanvas.getContext('2d')!;
-  const srcImageData = new ImageData(new Uint8ClampedArray(pixels.buffer as ArrayBuffer), srcW, srcH);
-  srcCtx.putImageData(srcImageData, -srcX, 0);
-
+): Promise<Uint8Array> {
   const dstCanvas = new OffscreenCanvas(FRAME_W, FRAME_H);
   const dstCtx = dstCanvas.getContext('2d')!;
   dstCtx.fillStyle = '#000000';
   dstCtx.fillRect(0, 0, FRAME_W, FRAME_H);
-  dstCtx.drawImage(srcCanvas, 0, 0, srcSliceW, srcH, 0, 0, FRAME_W, FRAME_H);
+  // drawImage clips cleanly if srcX + SOURCE_SLICE_W exceeds srcCanvas.width
+  dstCtx.drawImage(srcCanvas, srcX, 0, SOURCE_SLICE_W, srcH, 0, 0, FRAME_W, FRAME_H);
 
   // Invert colors for the dark display
   const frameData = dstCtx.getImageData(0, 0, FRAME_W, FRAME_H);
@@ -207,8 +201,7 @@ async function extractSlice(
   dstCtx.putImageData(frameData, 0, 0);
 
   const blob = await dstCanvas.convertToBlob({ type: 'image/png' });
-  const arrayBuffer = await blob.arrayBuffer();
-  return Array.from(new Uint8Array(arrayBuffer));
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -240,12 +233,13 @@ async function main(): Promise<void> {
   let selectedVoice : string | null = null;  // 'S' | 'A' | 'T' | 'B'
   let currentGigId  : number | null = null;
 
-  // Pre-fetch cache: key = URL, value = decoded pixel data
-  const pixelCache = new Map<string, { pixels: Uint8ClampedArray; width: number; height: number }>();
+  // Pre-fetch cache: key = URL, value = decoded pixel data + pre-drawn canvas
+  const pixelCache = new Map<string, { pixels: Uint8ClampedArray; canvas: OffscreenCanvas; width: number; height: number }>();
 
-  // Per-song rendered frame cache: key = xOffset, value = [sliceL, sliceM, sliceR]
+  // Per-song rendered frame cache: key = xOffset, value = [sliceL, sliceM, sliceR] as PNG Uint8Arrays
   // Cleared whenever a new song loads. Pre-rendered in the background after load.
-  let frameRenderCache = new Map<number, [number[], number[], number[]]>();
+  let scrollCanvas: OffscreenCanvas | null = null;
+  let frameRenderCache = new Map<number, [Uint8Array, Uint8Array, Uint8Array]>();
 
   async function fetchScrollPixelsCached(url: string) {
     if (pixelCache.has(url)) return pixelCache.get(url)!;
@@ -341,21 +335,22 @@ async function main(): Promise<void> {
   }
 
   // ── Image frame helpers ────────────────────────────────────────────────────
-  async function renderFrame(x: number, pixels: Uint8ClampedArray, w: number, h: number): Promise<[number[], number[], number[]]> {
+  async function renderFrame(x: number): Promise<[Uint8Array, Uint8Array, Uint8Array]> {
     const cached = frameRenderCache.get(x);
     if (cached) return cached;
+    const sc = scrollCanvas!;
     const slices = await Promise.all([
-      extractSlice(pixels, w, h, x),
-      extractSlice(pixels, w, h, x + SOURCE_SLICE_W),
-      extractSlice(pixels, w, h, x + SOURCE_SLICE_W * 2),
-    ]) as [number[], number[], number[]];
+      extractSlice(sc, x, scrollH),
+      extractSlice(sc, x + SOURCE_SLICE_W, scrollH),
+      extractSlice(sc, x + SOURCE_SLICE_W * 2, scrollH),
+    ]) as [Uint8Array, Uint8Array, Uint8Array];
     frameRenderCache.set(x, slices);
     return slices;
   }
 
   async function sendFrame(): Promise<void> {
-    if (!scrollPixels) return;
-    const [sliceL, sliceM, sliceR] = await renderFrame(xOffset, scrollPixels, scrollW, scrollH);
+    if (!scrollCanvas) return;
+    const [sliceL, sliceM, sliceR] = await renderFrame(xOffset);
     await Promise.all([
       bridge.updateImageRawData(new ImageRawDataUpdate({
         containerID: ID_SCROLL_LEFT,
@@ -378,17 +373,17 @@ async function main(): Promise<void> {
   /** Pre-render all frames for a song in the background, one at a time.
    *  Aborts silently if frameRenderCache is replaced (new song loaded). */
   async function prerenderFrames(
-    pixels: Uint8ClampedArray, w: number, h: number,
-    cache: Map<number, [number[], number[], number[]]>,
+    canvas: OffscreenCanvas, w: number, h: number,
+    cache: Map<number, [Uint8Array, Uint8Array, Uint8Array]>,
   ): Promise<void> {
     for (let x = 0; x < w; x += PIXELS_PER_BEAT) {
       if (cache !== frameRenderCache) return; // song changed — abort
       if (!cache.has(x)) {
         const slices = await Promise.all([
-          extractSlice(pixels, w, h, x),
-          extractSlice(pixels, w, h, x + SOURCE_SLICE_W),
-          extractSlice(pixels, w, h, x + SOURCE_SLICE_W * 2),
-        ]) as [number[], number[], number[]];
+          extractSlice(canvas, x, h),
+          extractSlice(canvas, x + SOURCE_SLICE_W, h),
+          extractSlice(canvas, x + SOURCE_SLICE_W * 2, h),
+        ]) as [Uint8Array, Uint8Array, Uint8Array];
         if (cache === frameRenderCache) cache.set(x, slices);
       }
     }
@@ -422,6 +417,7 @@ async function main(): Promise<void> {
     playing = false;
     if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
     scrollPixels = null;
+    scrollCanvas = null;
     selectedVoice = null;
     gigs = await fetchGigs(); // pre-fetch in background for speed
     setStatus('Choose your voice part');
@@ -491,6 +487,7 @@ async function main(): Promise<void> {
         const result = await fetchScrollPixelsCached(url);
         if (result) {
           scrollPixels = result.pixels;
+          scrollCanvas = result.canvas;
           scrollW = result.width;
           scrollH = result.height;
           xOffset = 0;
@@ -528,8 +525,9 @@ async function main(): Promise<void> {
       return;
     }
     // If the next-song pre-renderer already finished, adopt its frame cache
-    const preRendered = (result as any).__frameCache as Map<number, [number[], number[], number[]]> | undefined;
+    const preRendered = (result as any).__frameCache as Map<number, [Uint8Array, Uint8Array, Uint8Array]> | undefined;
     scrollPixels = result.pixels;
+    scrollCanvas = result.canvas;
     scrollW = result.width;
     scrollH = result.height;
     xOffset = 0;
@@ -541,13 +539,13 @@ async function main(): Promise<void> {
     // Clear frame cache and eagerly pre-render frame 0 so first display is instant
     frameRenderCache = preRendered ?? new Map();
     const thisCache = frameRenderCache;
-    await renderFrame(0, scrollPixels, scrollW, scrollH); // blocks until frame 0 ready
-    // Start paused; focusedIdx=0 = Play after reset
+    await renderFrame(0); // blocks until frame 0 ready
+    // Start paused
     await updateListData(playingControls());
     setStatus(`${song.title} — ${bpm} BPM`);
     await sendFrame();
     // Background-render remaining frames so ticks are instant
-    void prerenderFrames(scrollPixels, scrollW, scrollH, thisCache);
+    void prerenderFrames(result.canvas, scrollW, scrollH, thisCache);
     // Pre-fetch + pre-render next song in background
     const next = songs[index + 1];
     if (next) {
@@ -555,8 +553,8 @@ async function main(): Promise<void> {
       if (nextUrl) void fetchScrollPixelsCached(nextUrl).then(r => {
         if (r && thisCache === frameRenderCache) {
           // next song has its own cache — use a temporary one just to warm it
-          const nextCache = new Map<number, [number[], number[], number[]]>();
-          void prerenderFrames(r.pixels, r.width, r.height, nextCache).then(() => {
+          const nextCache = new Map<number, [Uint8Array, Uint8Array, Uint8Array]>();
+          void prerenderFrames(r.canvas, r.width, r.height, nextCache).then(() => {
             // Store under a special key in pixelCache so playSetlistFrom can use it
             // (frames are stored in nextCache; swapped to frameRenderCache on load)
             (r as any).__frameCache = nextCache;
