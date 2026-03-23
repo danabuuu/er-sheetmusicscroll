@@ -606,8 +606,8 @@ async function main(): Promise<void> {
       else void (currentGigId !== null ? enterGigSelect() : enterIdle()); // Back
 
     } else if (appState === AppState.CONFIRM_EXIT) {
-      if (focusedIdx === 2) { void enterIdle(); } // Yes
-      else { // No — resume
+      if (focusedIdx === 1) { void enterIdle(); } // Yes
+      else { // No (index 0) — resume
         appState = AppState.PLAYING;
         void updateListData(playingControls(), true).then(() => sendFrame());
       }
@@ -654,8 +654,8 @@ async function main(): Promise<void> {
       playing = false;
       if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
       appState = AppState.CONFIRM_EXIT;
-      void updateListData(['Return to menu?', 'No', 'Yes']);
-      focusedIdx = 1;
+      void updateListData(['No', 'Yes']);
+      // focusedIdx=0 (No) is the safe default — user must scroll to Yes to confirm
     } else if (appState === AppState.GIG_SELECT || appState === AppState.READY) {
       void enterIdle();
     }
