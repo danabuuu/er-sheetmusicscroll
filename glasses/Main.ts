@@ -296,7 +296,7 @@ async function main(): Promise<void> {
         itemCount: 1, itemName: ['Loading…'], isItemSelectBorderEn: 1,
       }),
     })],
-  } as any);
+  });
 
   const startupResult = await bridge.createStartUpPageContainer(startupPage);
   console.log('[scroll] createStartUpPageContainer result:', startupResult);
