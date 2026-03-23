@@ -20,6 +20,8 @@
 import {
   waitForEvenAppBridge,
   ImageContainerProperty,
+  ListContainerProperty,
+  ListItemContainerProperty,
   TextContainerProperty,
   TextContainerUpgrade,
   CreateStartUpPageContainer,
@@ -287,30 +289,21 @@ async function main(): Promise<void> {
   });
 
   // ── Initial startup layout (called ONCE) ──────────────────────────────────
+  // Startup: must use a list container so the SDK initialises its event system.
+  // All subsequent renders switch to text containers via rebuildPageContainer.
   const startupPage = new CreateStartUpPageContainer({
-    containerTotalNum: 5,
+    containerTotalNum: 4,
     imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
-    listObject: [],
-    textObject: [
-      // Empty overlay — captures temple events (scroll/tap/double) without
-      // scrolling any content, exactly like the overlays in even-toolkit/bridge.ts.
-      new TextContainerProperty({
-        containerID: ID_CONTROLS,
-        containerName: 'controls-overlay',
-        xPosition: 0, yPosition: 0, width: 576, height: 160,
-        borderWidth: 0, borderColor: 0, paddingLength: 0,
-        isEventCapture: 1,
-        content: '',
+    listObject: [new ListContainerProperty({
+      containerID: ID_CONTROLS,
+      containerName: 'controls',
+      xPosition: 0, yPosition: 0, width: 576, height: 160,
+      isEventCapture: 1,
+      itemContainer: new ListItemContainerProperty({
+        itemCount: 1, itemName: ['Loading…'], isItemSelectBorderEn: 1,
       }),
-      // Content container — shows the menu text with ▶ cursor.
-      new TextContainerProperty({
-        containerID: ID_CONTROLS_TEXT,
-        containerName: 'controls-text',
-        xPosition: 0, yPosition: 0, width: 576, height: 160,
-        borderWidth: 0, borderColor: 0, paddingLength: 0,
-        content: '▶ Loading…',
-      }),
-    ],
+    })],
+    textObject: [],
   });
 
   const startupResult = await bridge.createStartUpPageContainer(startupPage);
