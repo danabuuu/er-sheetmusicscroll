@@ -317,16 +317,19 @@ async function main(): Promise<void> {
 
   // Playing-state controls
   function playingControls(): string[] {
-    return [playing ? '⏸ Pause' : '▶ Play', '→ Step', '← Back', '+ BPM', '- BPM'];
+    return [playing ? '|| Pause' : '> Play', '> Step', '< Back', '+ BPM', '- BPM'];
   }
 
   async function updateListData(items: string[], preserveFocus = false): Promise<void> {
     const safe = items.length > 0 ? items : ['(empty)'];
     currentListItems = safe;
     if (!preserveFocus) focusedIdx = 0;
-    // currentSelectedItem is not in the SDK types but is supported by the firmware:
-    // it sets the list cursor to the specified index after rebuild, keeping the
-    // SDK cursor in sync with our local focusedIdx. See even-dev/restapi-app.ts.
+    // Stamp before the await — spurious SDK scroll events fired during the
+    // rebuildPageContainer call will be suppressed for REBUILD_SCROLL_SUPPRESS_MS.
+    lastRebuildTime = Date.now();
+    // currentSelectedItem is an undocumented firmware field that sets the list
+    // cursor to the given index after rebuild. Pass it so hardware cursor stays
+    // in sync with focusedIdx (confirmed to survive toJson in SDK v0.0.7).
     await bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 4,
       imageObject: [imageContainerLeft, imageContainerMid, imageContainerRight],
@@ -573,11 +576,14 @@ async function main(): Promise<void> {
 
   // ── Tap dedup (ported from even-toolkit/glasses/gestures.ts) ─────────────
   // G2 hardware fires duplicate tap events within ~90ms; debounce them.
-  // Scroll debouncing is NOT needed because we use a text container with
-  // manual cursor rendering — there is no SDK-managed list cursor to fight.
-  const TAP_COOLDOWN_MS           = 220;
   const TAP_DUPLICATE_DEBOUNCE_MS = 90;
   const DBL_DUPLICATE_DEBOUNCE_MS = 140;
+
+  // Post-rebuild spurious scroll suppression.
+  // rebuildPageContainer fires a scroll event during the await; ignore scrolls
+  // for this many ms after any rebuild to prevent focusedIdx corruption.
+  const REBUILD_SCROLL_SUPPRESS_MS = 400;
+  let lastRebuildTime = 0;
 
   let lastTapTime = 0;
   let lastTapKind: 'tap' | 'double' | null = null;
@@ -587,7 +593,6 @@ async function main(): Promise<void> {
     const elapsed = now - lastTapTime;
     const dupeMs = kind === 'double' ? DBL_DUPLICATE_DEBOUNCE_MS : TAP_DUPLICATE_DEBOUNCE_MS;
     if (kind === lastTapKind && elapsed < dupeMs) return false;
-    if (elapsed < TAP_COOLDOWN_MS && lastTapKind !== null) return false;
     lastTapTime = now; lastTapKind = kind;
     return true;
   }
@@ -599,12 +604,16 @@ async function main(): Promise<void> {
   // stays in sync after rebuilds).
   let focusedIdx = 0;
 
-  function handleGlassAction(action: 'tap' | 'double' | 'up' | 'down', sdkIdx?: number): void {
+  function handleGlassAction(action: 'tap' | 'double' | 'up' | 'down'): void {
     if (action === 'up' || action === 'down') {
-      // Trust the SDK's reported index if provided; otherwise move ±1.
-      if (sdkIdx !== undefined && sdkIdx >= 0 && sdkIdx < currentListItems.length) {
-        focusedIdx = sdkIdx;
-      } else if (action === 'up') {
+      // Ignore scrolls fired spuriously during/after a rebuild.
+      if (Date.now() - lastRebuildTime < REBUILD_SCROLL_SUPPRESS_MS) {
+        console.log('[scroll] suppressed post-rebuild scroll', action);
+        return;
+      }
+      // Pure ±1 direction tracking — never trust currentSelectItemIndex from scroll
+      // events (even-dev apps do the same: restapi-app.ts line 475, timer-controller.ts).
+      if (action === 'up') {
         focusedIdx = Math.max(0, focusedIdx - 1);
       } else {
         focusedIdx = Math.min(currentListItems.length - 1, focusedIdx + 1);
@@ -666,7 +675,7 @@ async function main(): Promise<void> {
 
     } else if (appState === AppState.PLAYING) {
       switch (name) {
-        case '▶ Play':
+        case '> Play':
           if (!playing && scrollPixels) {
             playing = true;
             void updateListData(playingControls(), true).then(() => sendFrame());
@@ -674,7 +683,7 @@ async function main(): Promise<void> {
           }
           break;
 
-        case '⏸ Pause':
+        case '|| Pause':
           if (playing) {
             playing = false;
             if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
@@ -682,7 +691,7 @@ async function main(): Promise<void> {
           }
           break;
 
-        case '→ Step':
+        case '> Step':
           if (scrollPixels) {
             if (xOffset + PIXELS_PER_BEAT >= scrollW) {
               setStatus('Loading next song…');
@@ -698,7 +707,7 @@ async function main(): Promise<void> {
           }
           break;
 
-        case '← Back':
+        case '< Back':
           xOffset = Math.max(0, xOffset - PIXELS_PER_BEAT);
           void sendFrame();
           if (playing) {
@@ -734,20 +743,13 @@ async function main(): Promise<void> {
     const ev = event.listEvent;
     if (!ev) return;
 
-    // Parse index from event — used to sync focusedIdx on scroll.
-    const rawIdx = ev.currentSelectItemIndex;
-    const sdkIdx = typeof rawIdx === 'number' ? rawIdx
-      : typeof rawIdx === 'string' ? parseInt(rawIdx, 10)
-      : -1;
-    const validIdx = Number.isFinite(sdkIdx) && sdkIdx >= 0 ? sdkIdx : undefined;
-
     const et = ev.eventType as number;
     switch (et) {
       case OsEventTypeList.SCROLL_TOP_EVENT:
-        handleGlassAction('up', validIdx);
+        handleGlassAction('up');
         break;
       case OsEventTypeList.SCROLL_BOTTOM_EVENT:
-        handleGlassAction('down', validIdx);
+        handleGlassAction('down');
         break;
       case OsEventTypeList.DOUBLE_CLICK_EVENT:
         handleGlassAction('double');
