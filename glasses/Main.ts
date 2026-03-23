@@ -585,12 +585,6 @@ async function main(): Promise<void> {
   let focusedIdx = 0;
   let lastTapMs = 0; // simple 90ms tap dedup for hardware duplicate events
 
-  function parseEventIdx(ev: { currentSelectItemIndex?: number | string }): number {
-    const raw = ev.currentSelectItemIndex;
-    const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? parseInt(raw, 10) : -1;
-    return Number.isFinite(n) && n >= 0 && n < currentListItems.length ? n : -1;
-  }
-
   function dispatchTap(): void {
     const now = Date.now();
     if (now - lastTapMs < 90) return; // drop hardware duplicate
@@ -691,9 +685,6 @@ async function main(): Promise<void> {
     } else {
       // CLICK_EVENT (0) or undefined (simulator omits eventType on click)
       if (et === OsEventTypeList.CLICK_EVENT || et == null) {
-        // Sync from SDK-reported index so we always fire on what the user sees
-        const sdkIdx = parseEventIdx(ev);
-        if (sdkIdx >= 0) { focusedIdx = sdkIdx; }
         dispatchTap();
       }
     }
